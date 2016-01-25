@@ -1,8 +1,88 @@
-#include <string.h>
 #include "lib/utf8proc.h"
 #include "utf8.h"
 
-size_t mb_decode_char(int32_t *restrict dest, const char *restrict str)
+size_t gn_utf8_len(const char *str, size_t len)
+{
+   size_t ulen = 0;
+   
+   size_t clen;
+   for (size_t i = 0; i < len; i += clen) {
+      clen = utf8proc_utf8class[(uint8_t)str[i]];
+      ulen++;
+   }
+   return ulen;
+}
+
+bool gn_is_upper(int32_t c)
+{
+   assert(utf8proc_codepoint_valid(c));
+   
+   switch (utf8proc_get_property(c)->category) {
+   case UTF8PROC_CATEGORY_LU:
+      return true;
+   default:
+      return false;
+   }
+}
+
+bool gn_is_alnum(int32_t c)
+{
+   assert(utf8proc_codepoint_valid(c));
+   
+   switch (utf8proc_get_property(c)->category) {
+   case UTF8PROC_CATEGORY_LU:
+   case UTF8PROC_CATEGORY_LL:
+   case UTF8PROC_CATEGORY_LT:
+   case UTF8PROC_CATEGORY_LM:
+   case UTF8PROC_CATEGORY_LO:
+   case UTF8PROC_CATEGORY_ND:
+   case UTF8PROC_CATEGORY_NL:
+   case UTF8PROC_CATEGORY_NO:
+      return true;
+   default:
+      return false;
+   }
+}
+
+bool gn_is_alpha(int32_t c)
+{
+   assert(utf8proc_codepoint_valid(c));
+   
+   switch (utf8proc_get_property(c)->category) {
+   case UTF8PROC_CATEGORY_LU:
+   case UTF8PROC_CATEGORY_LL:
+   case UTF8PROC_CATEGORY_LT:
+   case UTF8PROC_CATEGORY_LM:
+   case UTF8PROC_CATEGORY_LO:
+      return true;
+   default:
+      return false;
+   }
+}
+
+bool gn_is_space(int32_t c)
+{
+   switch (utf8proc_get_property(c)->category) {
+   case UTF8PROC_CATEGORY_CC:
+   case UTF8PROC_CATEGORY_ZS:
+   case UTF8PROC_CATEGORY_ZL:
+      return true;
+   default:
+      return false;
+   }
+}
+
+bool gn_is_double_quote(int32_t c)
+{
+   switch (c) {
+   case U'"': case U'”': case U'“': case U'„': case U'«': case U'»':
+      return true;
+   default:
+      return false;
+   }
+}
+
+size_t gn_decode_char(int32_t *restrict dest, const char *restrict str)
 {
    const size_t len = utf8proc_utf8class[(uint8_t)*str];
    
@@ -29,7 +109,7 @@ size_t mb_decode_char(int32_t *restrict dest, const char *restrict str)
    }
 }
 
-size_t mb_encode_char(char *dest, const int32_t c)
+size_t gn_encode_char(char *dest, const int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
    
@@ -54,46 +134,4 @@ size_t mb_encode_char(char *dest, const int32_t c)
    dest[2] = 0x80 | ((c & 0x000fc0) >>  6);
    dest[3] = 0x80 | (c & 0x00003f);
    return 4;
-}
-
-size_t gn_utf8_len(const char *str, size_t len)
-{
-   size_t ulen = 0;
-   
-   size_t clen;
-   for (size_t i = 0; i < len; i += clen) {
-      clen = utf8proc_utf8class[(uint8_t)str[i]];
-      ulen++;
-   }
-   return ulen;
-}
-
-unsigned gn_char_class(int32_t c)
-{
-   assert(utf8proc_codepoint_valid(c));
-   
-   switch (utf8proc_get_property(c)->category) {
-   /* Letters. */
-   case UTF8PROC_CATEGORY_LU:
-      return GN_ALPHA | GN_UPPER;
-   case UTF8PROC_CATEGORY_LL:
-      return GN_ALPHA | GN_LOWER;
-   case UTF8PROC_CATEGORY_LT:
-   case UTF8PROC_CATEGORY_LM:
-   case UTF8PROC_CATEGORY_LO:
-      return GN_ALPHA;
-   /* Numbers. */
-   case UTF8PROC_CATEGORY_ND:
-   case UTF8PROC_CATEGORY_NL:
-   case UTF8PROC_CATEGORY_NO:
-      return GN_DIGIT;
-   /* Whitespace. */
-   case UTF8PROC_CATEGORY_CC:
-   case UTF8PROC_CATEGORY_ZS:
-   case UTF8PROC_CATEGORY_ZL:
-      return GN_WHITESPACE;
-   /* We don't care about other categories. */
-   default:
-      return 0;
-   }
 }

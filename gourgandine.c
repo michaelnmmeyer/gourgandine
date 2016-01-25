@@ -955,39 +955,17 @@ size_t mr_next(struct mascara *, struct mr_token **);
 #include <stddef.h>
 #include <stdbool.h>
 
-/* Character classes. */
-enum {
-   GN_LOWER = 1 << 0,    /* Lu */
-   GN_UPPER = 1 << 1,    /* Ll */
-   GN_ALPHA = 1 << 2,    /* Lu Ll Lt Lm Lo */
-   GN_DIGIT = 1 << 3,    /* Nd Nl No */
-   GN_WHITESPACE = 1 << 4,    /* Cc Zs Zl */
-};
-
-/* Returns a codepoint's class (bitwise of the relevant categories). */
-unsigned gn_char_class(int32_t c);
+bool gn_is_upper(int32_t c);
+bool gn_is_alnum(int32_t c);
+bool gn_is_alpha(int32_t c);
+bool gn_is_space(int32_t c);
+bool gn_is_double_quote(int32_t c);
 
 /* Encodes a single code point, returns the number of bytes written. */
-size_t mb_encode_char(char *dest, const int32_t c);
+size_t gn_encode_char(char *dest, const int32_t c);
 
 /* Decodes a single code point, returns the number of bytes read. */
-size_t mb_decode_char(int32_t *restrict dest, const char *restrict str);
-
-/* Decodes a string.
- * The destination buffer should be large enough to hold (len + 1) code points.
- * The output string is zero-terminated.
- * Returns the length of the decoded string.
- */
-size_t mb_utf8_decode(int32_t *restrict dest,
-                      const char *restrict str, size_t len);
-
-/* Encodes a string.
- * The destination buffer should be large enough to hold (len * 4 + 1) bytes.
- * The output string buffer is zero-terminated. Returns the length of the
- * encoded string.
- */
-size_t mb_utf8_encode(char *restrict dest,
-                      const int32_t *restrict str, size_t len);
+size_t gn_decode_char(int32_t *restrict dest, const char *restrict str);
 
 /* Returns the number of code points in a UTF-8-encoded string. */
 size_t gn_utf8_len(const char *str, size_t len);
@@ -1020,7 +998,7 @@ static const int norm_opts = UTF8PROC_COMPOSE | UTF8PROC_CASEFOLD
 /* Fold a character to ASCII and appends it to the provided buffer. */
 static int32_t *push_letter(int32_t *str, int32_t c)
 {
-   assert((gn_char_class(c) & GN_ALPHA));
+   assert(gn_is_alpha(c));
    
    switch (c) {
    case U'œ': case U'Œ':
@@ -1068,20 +1046,15 @@ static void clear_data(struct gourgandine *rec)
    gn_vec_clear(rec->tokens);
 }
 
-static void encode_abbr(struct gourgandine *rec, const struct span *abbr,
-                        const struct mr_token *sent)
+static void encode_abbr(struct gourgandine *rec, const struct mr_token *acr)
 {
    assert(gn_vec_len(rec->str) == 0);
 
-   for (size_t t = abbr->start; t < abbr->end; t++) {
-      const struct mr_token *token = &sent[t];
-      for (size_t i = 0; i < token->len; ) {
-         int32_t c;
-         i += mb_decode_char(&c, &token->str[i]);
-         if ((gn_char_class(c) & GN_ALPHA)) {
-            rec->str = push_letter(rec->str, c);
-         }
-      }
+   for (size_t i = 0; i < acr->len; ) {
+      int32_t c;
+      i += gn_decode_char(&c, &acr->str[i]);
+      if (gn_is_alpha(c))
+         rec->str = push_letter(rec->str, c);
    }
    gn_vec_push(rec->str, '\t');
 }
@@ -1094,8 +1067,8 @@ static void encode_exp(struct gourgandine *rec, const struct span *exp,
       const struct mr_token *token = &sent[t];
       for (size_t i = 0; i < token->len; ) {
          int32_t c;
-         i += mb_decode_char(&c, &token->str[i]);
-         if ((gn_char_class(c) & GN_ALPHA)) {
+         i += gn_decode_char(&c, &token->str[i]);
+         if (gn_is_alpha(c)) {
             if (!in_token) {
                in_token = true;
                struct assoc a = {
@@ -1179,11 +1152,11 @@ static size_t match_here(struct gourgandine *rec, const int32_t *abbr,
 }
 
 static bool extract_rev(struct gourgandine *rec, const struct mr_token *sent,
-                        struct span *abbr, struct span *exp)
+                        size_t abbr, struct span *exp)
 {
    clear_data(rec);
 
-   encode_abbr(rec, abbr, sent);
+   encode_abbr(rec, &sent[abbr]);
    encode_exp(rec, exp, sent);
 
    const int32_t *str = rec->str;
@@ -1224,32 +1197,21 @@ static void truncate_exp(const struct mr_token *sent, struct span *exp,
    }
 
    for (size_t i = end; i < exp->end; i++) {
-      if (sent[i].len > sizeof(int32_t))
+      if (sent[i].type != MR_SYM)
          continue;
-      int32_t c;
-      if (mb_decode_char(&c, sent[i].str) != sent[i].len)
+      if (contains_comma && sent[i].len == 1 && *sent[i].str == ',')
          continue;
-      switch (c) {
-      case U',':
-         if (!contains_comma) {
-            exp->end = i;
-            return;
-         }
-         break;
-      case U':': case U';': case U'-': case U'/':
-      case U'"': case U'”': case U'»': case U'=': case U'(':
-         exp->end = i;
-         return;
-      }
+      exp->end = i;
+      return;
    }
 }
 
 static bool extract_fwd(struct gourgandine *rec, const struct mr_token *sent,
-                        struct span *abbr, struct span *exp)
+                        size_t abbr, struct span *exp)
 {
    clear_data(rec);
    
-   encode_abbr(rec, abbr, sent);
+   encode_abbr(rec, &sent[abbr]);
    encode_exp(rec, exp, sent);
 
    if (gn_vec_len(rec->tokens) == 0)
@@ -1284,8 +1246,8 @@ static bool pre_check(const struct mr_token *acr)
     * Everybody does that, too.
     */
    int32_t c;
-   mb_decode_char(&c, acr->str);
-   if (!(gn_char_class(c) & (GN_ALPHA | GN_DIGIT)))
+   gn_decode_char(&c, acr->str);
+   if (!gn_is_alnum(c))
       return false;
    
    /* Require that the acronym contains at least one capital letter if
@@ -1300,8 +1262,8 @@ static bool pre_check(const struct mr_token *acr)
     */
    size_t i = 0;
    while (i < acr->len) {
-      i += mb_decode_char(&c, &acr->str[i]);
-      if ((gn_char_class(c) & GN_UPPER)) {
+      i += gn_decode_char(&c, &acr->str[i]);
+      if (gn_is_upper(c)) {
          if (ulen == 2)
             return true;
          ulen = 2;
@@ -1380,22 +1342,22 @@ static void norm_exp(struct gn_buf *buf, const char *str, size_t len)
    
    for (size_t i = 0; i < len; ) {
       int32_t c;
-      i += mb_decode_char(&c, &str[i]);
+      i += gn_decode_char(&c, &str[i]);
       gn_buf_grow(buf, 2 * sizeof(int32_t));
       
       /* Skip quotation marks. */
-      if (c == U'"' || c == U'”' || c == U'“' || c == U'„' || c == U'«' || c == U'»')
+      if (gn_is_double_quote(c))
          continue;
       /* Reduce whitespace spans to a single space character. */
-      if ((gn_char_class(c) & GN_WHITESPACE)) {
+      if (gn_is_space(c)) {
          do {
             /* Trailing spaces should already be removed. */
             assert(i < len);
-            i += mb_decode_char(&c, &str[i]);
-         } while ((gn_char_class(c) & GN_WHITESPACE));
+            i += gn_decode_char(&c, &str[i]);
+         } while (gn_is_space(c));
          buf->data[buf->size++] = ' ';
       }
-      buf->size += mb_encode_char(&buf->data[buf->size], c);
+      buf->size += gn_encode_char(&buf->data[buf->size], c);
    }
    gn_buf_truncate(buf, buf->size);
 }
@@ -1486,46 +1448,44 @@ static int examine_context(struct gourgandine *rec, const struct mr_token *sent,
    if (abbr->end - abbr->start != 1)
       goto reverse;
 
-   /* Avoid pathological cases. // XXX maybe truncate here and also for the reverse form?*/
+   /* Avoid pathological cases. // FIXME maybe truncate here and also for the reverse form?*/
    if (exp->end - exp->start > MAX_TOKENS)
       exp->start = exp->end - MAX_TOKENS;
    
-   /* Try the form <expansion> (<acronym>). */
-   if (pre_check(&sent[abbr->start])) {
-      /* Hearst requires that an expansion doesn't contain more tokens than:
-       *
-       *    min(|abbr| + 5, |abbr| * 2)
-       *
-       * I checked which pairs would be excluded by adding this restriction with
-       * a Wikipedia French archive. This concerns 2216 / 40289 pairs. This
-       * removes false positives, but appr. half the excluded pairs are valid.
-       * This is because of the use of punctuation and sequences like
-       * "et de l'", etc., which make the expansion longer e.g.:
-       *
-       *    DIRECCTE    Directeur régional des Entreprises, de la Concurrence,
-       *                de la Consommation, du Travail et de l'Emploi
-       *
-       * I tried to tweak how the minimum length is computed to allow longer
-       * expansions, but it turns out that the ratio correct_pair / wrong_pair
-       * is not improved significantly by doing that. We could try something
-       * more fine grained: not counting article or punctuation, etc., but I
-       * don't think this would be beneficial overall, because invalid
-       * pairs also contain articles and punctuation with, so it seems, the
-       * same overall distribution.
-       *
-       * So we leave that restriction out. To filter out invalid pairs,
-       * some better criteria should be used.
-       */
-      if (extract_rev(rec, sent, abbr, exp) && post_check(sent, abbr, exp))
-         return save_acronym(rec, abbr, exp);
-   }
+   /* Try the form <expansion> (<acronym>).
+    * Hearst requires that an expansion doesn't contain more tokens than:
+    *
+    *    min(|abbr| + 5, |abbr| * 2)
+    *
+    * I checked which pairs would be excluded by adding this restriction with
+    * a Wikipedia French archive. This concerns 2216 / 40289 pairs. This
+    * removes false positives, but appr. half the excluded pairs are valid.
+    * This is because of the use of punctuation and sequences like
+    * "et de l'", etc., which make the expansion longer e.g.:
+    *
+    *    DIRECCTE    Directeur régional des Entreprises, de la Concurrence,
+    *                de la Consommation, du Travail et de l'Emploi
+    *
+    * I tried to tweak how the minimum length is computed to allow longer
+    * expansions, but it turns out that the ratio correct_pair / wrong_pair
+    * is not improved significantly by doing that. We could try something
+    * more fine grained: not counting article or punctuation, etc., but I
+    * don't think this would be beneficial overall, because invalid
+    * pairs also contain articles and punctuation with, so it seems, the
+    * same overall distribution.
+    *
+    * So we leave that restriction out. To filter out invalid pairs,
+    * some better criteria should be used.
+    */
+   if (pre_check(&sent[abbr->start]) && extract_rev(rec, sent, abbr->start, exp) && post_check(sent, abbr, exp))
+      return save_acronym(rec, abbr, exp);
 
 reverse:
-   /* Try the form <acronym> (<expansion>). We only look for an
-    * acronym comprising a single token, but could also try with two token.
+   /* Try the form <acronym> (<expansion>). We only look for an acronym
+    * comprising a single token, but could also try with two token.
     */
    exp->start = exp->end - 1;
-   if (pre_check(&sent[exp->start]) && extract_fwd(rec, sent, exp, abbr) && post_check(sent, exp, abbr))
+   if (pre_check(&sent[exp->start]) && extract_fwd(rec, sent, exp->start, abbr) && post_check(sent, exp, abbr))
       return save_acronym(rec, exp, abbr);
    return 0;
 }
@@ -1627,9 +1587,89 @@ void *gn_realloc(void *mem, size_t size)
    return mem;
 }
 #line 1 "utf8.c"
-#include <string.h>
 
-size_t mb_decode_char(int32_t *restrict dest, const char *restrict str)
+size_t gn_utf8_len(const char *str, size_t len)
+{
+   size_t ulen = 0;
+   
+   size_t clen;
+   for (size_t i = 0; i < len; i += clen) {
+      clen = utf8proc_utf8class[(uint8_t)str[i]];
+      ulen++;
+   }
+   return ulen;
+}
+
+bool gn_is_upper(int32_t c)
+{
+   assert(utf8proc_codepoint_valid(c));
+   
+   switch (utf8proc_get_property(c)->category) {
+   case UTF8PROC_CATEGORY_LU:
+      return true;
+   default:
+      return false;
+   }
+}
+
+bool gn_is_alnum(int32_t c)
+{
+   assert(utf8proc_codepoint_valid(c));
+   
+   switch (utf8proc_get_property(c)->category) {
+   case UTF8PROC_CATEGORY_LU:
+   case UTF8PROC_CATEGORY_LL:
+   case UTF8PROC_CATEGORY_LT:
+   case UTF8PROC_CATEGORY_LM:
+   case UTF8PROC_CATEGORY_LO:
+   case UTF8PROC_CATEGORY_ND:
+   case UTF8PROC_CATEGORY_NL:
+   case UTF8PROC_CATEGORY_NO:
+      return true;
+   default:
+      return false;
+   }
+}
+
+bool gn_is_alpha(int32_t c)
+{
+   assert(utf8proc_codepoint_valid(c));
+   
+   switch (utf8proc_get_property(c)->category) {
+   case UTF8PROC_CATEGORY_LU:
+   case UTF8PROC_CATEGORY_LL:
+   case UTF8PROC_CATEGORY_LT:
+   case UTF8PROC_CATEGORY_LM:
+   case UTF8PROC_CATEGORY_LO:
+      return true;
+   default:
+      return false;
+   }
+}
+
+bool gn_is_space(int32_t c)
+{
+   switch (utf8proc_get_property(c)->category) {
+   case UTF8PROC_CATEGORY_CC:
+   case UTF8PROC_CATEGORY_ZS:
+   case UTF8PROC_CATEGORY_ZL:
+      return true;
+   default:
+      return false;
+   }
+}
+
+bool gn_is_double_quote(int32_t c)
+{
+   switch (c) {
+   case U'"': case U'”': case U'“': case U'„': case U'«': case U'»':
+      return true;
+   default:
+      return false;
+   }
+}
+
+size_t gn_decode_char(int32_t *restrict dest, const char *restrict str)
 {
    const size_t len = utf8proc_utf8class[(uint8_t)*str];
    
@@ -1656,7 +1696,7 @@ size_t mb_decode_char(int32_t *restrict dest, const char *restrict str)
    }
 }
 
-size_t mb_encode_char(char *dest, const int32_t c)
+size_t gn_encode_char(char *dest, const int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
    
@@ -1681,48 +1721,6 @@ size_t mb_encode_char(char *dest, const int32_t c)
    dest[2] = 0x80 | ((c & 0x000fc0) >>  6);
    dest[3] = 0x80 | (c & 0x00003f);
    return 4;
-}
-
-size_t gn_utf8_len(const char *str, size_t len)
-{
-   size_t ulen = 0;
-   
-   size_t clen;
-   for (size_t i = 0; i < len; i += clen) {
-      clen = utf8proc_utf8class[(uint8_t)str[i]];
-      ulen++;
-   }
-   return ulen;
-}
-
-unsigned gn_char_class(int32_t c)
-{
-   assert(utf8proc_codepoint_valid(c));
-   
-   switch (utf8proc_get_property(c)->category) {
-   /* Letters. */
-   case UTF8PROC_CATEGORY_LU:
-      return GN_ALPHA | GN_UPPER;
-   case UTF8PROC_CATEGORY_LL:
-      return GN_ALPHA | GN_LOWER;
-   case UTF8PROC_CATEGORY_LT:
-   case UTF8PROC_CATEGORY_LM:
-   case UTF8PROC_CATEGORY_LO:
-      return GN_ALPHA;
-   /* Numbers. */
-   case UTF8PROC_CATEGORY_ND:
-   case UTF8PROC_CATEGORY_NL:
-   case UTF8PROC_CATEGORY_NO:
-      return GN_DIGIT;
-   /* Whitespace. */
-   case UTF8PROC_CATEGORY_CC:
-   case UTF8PROC_CATEGORY_ZS:
-   case UTF8PROC_CATEGORY_ZL:
-      return GN_WHITESPACE;
-   /* We don't care about other categories. */
-   default:
-      return 0;
-   }
 }
 #line 1 "vec.c"
 #include <stdlib.h>
