@@ -30,7 +30,7 @@ static const int norm_opts = UTF8PROC_COMPOSE | UTF8PROC_CASEFOLD
                            ;
 
 /* Fold a character to ASCII and appends it to the provided buffer. */
-static void push_letter(struct gn_buf *buf, char32_t c)
+static int32_t *push_letter(int32_t *str, char32_t c)
 {
    assert((gn_char_class(c) & GN_ALPHA));
    
@@ -45,13 +45,13 @@ static void push_letter(struct gn_buf *buf, char32_t c)
        *    HADOPI   Haute autorité pour la diffusion des œuvres et la
        *             protection des droits sur internet
        */
-      gn_buf_catc(buf, 'o');
+      gn_vec_push(str, 'o');
       break;
    case U'Æ': case U'æ':
       /* Never actually encountered this ligature. I think it is reasonable to
        * assume that it is used like Œ.
        */
-      gn_buf_catc(buf, 'a');
+      gn_vec_push(str, 'a');
       break;
    default: {
       /* The longest latin glyphs, after NFKC normalization, are the ligatures ﬃ
@@ -61,35 +61,37 @@ static void push_letter(struct gn_buf *buf, char32_t c)
       int32_t cs[3];
       ssize_t len = utf8proc_decompose_char(c, cs, sizeof cs / sizeof *cs, norm_opts, NULL);
       if (len > 0 && len <= (ssize_t)(sizeof cs / sizeof *cs)) {
-         gn_buf_grow(buf, len * sizeof(char32_t));
          for (ssize_t i = 0; i < len; i++)
-            buf->size += utf8proc_encode_char(cs[i], (uint8_t *)&buf->data[buf->size]);
+            gn_vec_push(str, cs[i]);
       }
    }
    }
+   return str;
 }
 
 static void clear_data(struct gourgandine *rec)
 {
    gn_buf_clear(&rec->buf);
+   gn_vec_clear(rec->str);
    gn_vec_clear(rec->tokens);
 }
 
 static void encode_abbr(struct gourgandine *rec, const struct span *abbr,
                         const struct mr_token *sent)
 {
-   assert(rec->buf.size == 0);
+   assert(gn_vec_len(rec->str) == 0);
 
    for (size_t t = abbr->start; t < abbr->end; t++) {
       const struct mr_token *token = &sent[t];
       for (size_t i = 0; i < token->len; ) {
          char32_t c;
          i += mb_decode_char(&c, &token->str[i]);
-         if ((gn_char_class(c) & GN_ALPHA))
-            push_letter(&rec->buf, c);
+         if ((gn_char_class(c) & GN_ALPHA)) {
+            rec->str = push_letter(rec->str, c);
+         }
       }
    }
-   gn_buf_catc(&rec->buf, '\t');
+   gn_vec_push(rec->str, '\t');
 }
 
 static void encode_exp(struct gourgandine *rec, const struct span *exp,
@@ -105,25 +107,27 @@ static void encode_exp(struct gourgandine *rec, const struct span *exp,
             if (!in_token) {
                in_token = true;
                struct assoc a = {
-                  .norm_off = rec->buf.size,
+                  .norm_off = gn_vec_len(rec->str),
                   .token_no = t,
                };
                gn_vec_push(rec->tokens, a);
             }
-            push_letter(&rec->buf, c);
+            rec->str = push_letter(rec->str, c);
          } else if (in_token) {
-            gn_buf_catc(&rec->buf, ' ');
+            gn_vec_push(rec->str, ' ');
             in_token = false;
          }
       }
       if (in_token)
-         gn_buf_catc(&rec->buf, ' ');
+         gn_vec_push(rec->str, ' ');
    }
+   gn_vec_grow(rec->str, 1);
+   rec->str[gn_vec_len(rec->str)] = '\0';
 }
 
-static char32_t char_at(const struct gourgandine *gn, size_t tok, size_t pos)
+static int32_t char_at(const struct gourgandine *gn, size_t tok, size_t pos)
 {
-   return gn->buf.data[gn->tokens[tok].norm_off + pos];
+   return gn->str[gn->tokens[tok].norm_off + pos];
 }
 
 /* Tries to match an acronym against a possible expansion.
@@ -147,7 +151,7 @@ static char32_t char_at(const struct gourgandine *gn, size_t tok, size_t pos)
  * Returns the position of the normalized word containing the last acronym
  * letter incremented by one on success, or 0 on failure.
  */
-static size_t match_here(struct gourgandine *rec, const char *abbr,
+static size_t match_here(struct gourgandine *rec, const int32_t *abbr,
                          size_t tok, size_t pos)
 {
    /* There is a match if we reached the end of the acronym. */
@@ -157,7 +161,7 @@ static size_t match_here(struct gourgandine *rec, const char *abbr,
    assert(pos > 0);
    
    /* Try first to find the acronym letter in the current word. */
-   char32_t c;
+   int32_t c;
    size_t l;
    while ((c = char_at(rec, tok, pos)) != ' ') {
       if (c == *abbr && (l = match_here(rec, &abbr[1], tok, pos + 1)))
@@ -182,17 +186,28 @@ static size_t match_here(struct gourgandine *rec, const char *abbr,
    return 0;
 }
 
+void print(const int32_t *str)
+{
+   fputs("SENT: ", stdout);
+   size_t len = gn_vec_len(str);
+   for (size_t i = 0; i < len; i++) {
+      uint8_t buf[4];
+      ssize_t nr = utf8proc_encode_char(str[i], buf);
+      for (ssize_t i = 0; i < nr; i++)
+         putchar(buf[i]);
+   }
+   putchar('\n');
+}
+
 static bool extract_rev(struct gourgandine *rec, const struct mr_token *sent,
                         struct span *abbr, struct span *exp)
 {
    clear_data(rec);
-   
+
    encode_abbr(rec, abbr, sent);
    encode_exp(rec, exp, sent);
 
-   gn_buf_truncate(&rec->buf, rec->buf.size);
-
-   const char *str = rec->buf.data;
+   const int32_t *str = rec->str;
    size_t start = gn_vec_len(rec->tokens);
    while (start--) {
       if (char_at(rec, start, 0) == *str && match_here(rec, &str[1], start, 1)) {
@@ -258,12 +273,10 @@ static bool extract_fwd(struct gourgandine *rec, const struct mr_token *sent,
    encode_abbr(rec, abbr, sent);
    encode_exp(rec, exp, sent);
 
-   gn_buf_truncate(&rec->buf, rec->buf.size);
-
    if (gn_vec_len(rec->tokens) == 0)
       return false;
    
-   const char *str = rec->buf.data;
+   const int32_t *str = rec->str;
    if (*str != char_at(rec, 0, 0))
       return false;
    
@@ -491,7 +504,7 @@ static int examine_context(struct gourgandine *rec, const struct mr_token *sent,
       return 0;
 
    /* If the abbreviation would be too long, try the reverse form. */
-   if (abbr->end - abbr->start > 1)
+   if (abbr->end - abbr->start != 1)
       goto reverse;
 
    /* Avoid pathological cases. // XXX maybe truncate here and also for the reverse form?*/

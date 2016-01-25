@@ -1,10 +1,10 @@
 #ifndef GN_IMP_H
 #define GN_IMP_H
 
+#include <stdint.h>
 #include "buf.h"
 
-struct gourgandine {   
-
+struct gourgandine {
    /* Temporary buffer for normalizing an acronym and its expansion.
       Before trying to match an acronym against its expansion, we write
       here a string of the form:
@@ -16,6 +16,8 @@ struct gourgandine {
          acronym '\0' expansion '\0'
     */
    struct gn_buf buf;
+   
+   int32_t *str;
    
    /* Mapping between a real token and a normalized token. */
    struct assoc {
