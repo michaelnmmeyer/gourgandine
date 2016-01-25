@@ -2,7 +2,7 @@
 #include "lib/utf8proc.h"
 #include "utf8.h"
 
-size_t mb_decode_char(char32_t *restrict dest, const char *restrict str)
+size_t mb_decode_char(int32_t *restrict dest, const char *restrict str)
 {
    const size_t len = utf8proc_utf8class[(uint8_t)*str];
    
@@ -29,7 +29,7 @@ size_t mb_decode_char(char32_t *restrict dest, const char *restrict str)
    }
 }
 
-size_t mb_encode_char(char *dest, const char32_t c)
+size_t mb_encode_char(char *dest, const int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
    
@@ -68,7 +68,7 @@ size_t gn_utf8_len(const char *str, size_t len)
    return ulen;
 }
 
-unsigned gn_char_class(char32_t c)
+unsigned gn_char_class(int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
    

@@ -30,7 +30,7 @@ static const int norm_opts = UTF8PROC_COMPOSE | UTF8PROC_CASEFOLD
                            ;
 
 /* Fold a character to ASCII and appends it to the provided buffer. */
-static int32_t *push_letter(int32_t *str, char32_t c)
+static int32_t *push_letter(int32_t *str, int32_t c)
 {
    assert((gn_char_class(c) & GN_ALPHA));
    
@@ -56,14 +56,18 @@ static int32_t *push_letter(int32_t *str, char32_t c)
    default: {
       /* The longest latin glyphs, after NFKC normalization, are the ligatures ﬃ
        * and ﬄ. Some glyphs of other scripts produce much wider sequences, but
-       * are useless for our purpose, so we just ignore them.
+       * are useless for our purpose, so we just ignore them. Note that we don't
+       * necessarily obtain a NFKC-normalized string: further processing is
+       * required to do things properly (see utf8proc_decompose()), but we only
+       * care about alphabetic characters encoded in a single code point, so
+       * this doesn't matter.
        */
       int32_t cs[3];
-      ssize_t len = utf8proc_decompose_char(c, cs, sizeof cs / sizeof *cs, norm_opts, NULL);
-      if (len > 0 && len <= (ssize_t)(sizeof cs / sizeof *cs)) {
+      const size_t max = sizeof cs / sizeof *cs;
+      ssize_t len = utf8proc_decompose_char(c, cs, max, norm_opts, NULL);
+      if (len > 0 && (size_t)len <= max)
          for (ssize_t i = 0; i < len; i++)
             gn_vec_push(str, cs[i]);
-      }
    }
    }
    return str;
@@ -84,7 +88,7 @@ static void encode_abbr(struct gourgandine *rec, const struct span *abbr,
    for (size_t t = abbr->start; t < abbr->end; t++) {
       const struct mr_token *token = &sent[t];
       for (size_t i = 0; i < token->len; ) {
-         char32_t c;
+         int32_t c;
          i += mb_decode_char(&c, &token->str[i]);
          if ((gn_char_class(c) & GN_ALPHA)) {
             rec->str = push_letter(rec->str, c);
@@ -101,7 +105,7 @@ static void encode_exp(struct gourgandine *rec, const struct span *exp,
       bool in_token = false;
       const struct mr_token *token = &sent[t];
       for (size_t i = 0; i < token->len; ) {
-         char32_t c;
+         int32_t c;
          i += mb_decode_char(&c, &token->str[i]);
          if ((gn_char_class(c) & GN_ALPHA)) {
             if (!in_token) {
@@ -186,19 +190,6 @@ static size_t match_here(struct gourgandine *rec, const int32_t *abbr,
    return 0;
 }
 
-void print(const int32_t *str)
-{
-   fputs("SENT: ", stdout);
-   size_t len = gn_vec_len(str);
-   for (size_t i = 0; i < len; i++) {
-      uint8_t buf[4];
-      ssize_t nr = utf8proc_encode_char(str[i], buf);
-      for (ssize_t i = 0; i < nr; i++)
-         putchar(buf[i]);
-   }
-   putchar('\n');
-}
-
 static bool extract_rev(struct gourgandine *rec, const struct mr_token *sent,
                         struct span *abbr, struct span *exp)
 {
@@ -245,9 +236,9 @@ static void truncate_exp(const struct mr_token *sent, struct span *exp,
    }
 
    for (size_t i = end; i < exp->end; i++) {
-      if (sent[i].len > sizeof(char32_t))
+      if (sent[i].len > sizeof(int32_t))
          continue;
-      char32_t c;
+      int32_t c;
       if (mb_decode_char(&c, sent[i].str) != sent[i].len)
          continue;
       switch (c) {
@@ -304,7 +295,7 @@ static bool pre_check(const struct mr_token *acr)
    /* Require that the acronym's first character is alphanumeric.
     * Everybody does that, too.
     */
-   char32_t c;
+   int32_t c;
    mb_decode_char(&c, acr->str);
    if (!(gn_char_class(c) & (GN_ALPHA | GN_DIGIT)))
       return false;
@@ -400,9 +391,9 @@ static void norm_exp(struct gn_buf *buf, const char *str, size_t len)
    gn_buf_grow(buf, len);
    
    for (size_t i = 0; i < len; ) {
-      char32_t c;
+      int32_t c;
       i += mb_decode_char(&c, &str[i]);
-      gn_buf_grow(buf, 2 * sizeof(char32_t));
+      gn_buf_grow(buf, 2 * sizeof(int32_t));
       
       /* Skip quotation marks. */
       if (c == U'"' || c == U'”' || c == U'“' || c == U'„' || c == U'«' || c == U'»')

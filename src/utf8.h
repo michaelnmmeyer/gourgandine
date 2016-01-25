@@ -3,7 +3,6 @@
 
 #include <stddef.h>
 #include <stdbool.h>
-#include <uchar.h>
 
 /* Character classes. */
 enum {
@@ -15,20 +14,20 @@ enum {
 };
 
 /* Returns a codepoint's class (bitwise of the relevant categories). */
-unsigned gn_char_class(char32_t c);
+unsigned gn_char_class(int32_t c);
 
 /* Encodes a single code point, returns the number of bytes written. */
-size_t mb_encode_char(char *dest, const char32_t c);
+size_t mb_encode_char(char *dest, const int32_t c);
 
 /* Decodes a single code point, returns the number of bytes read. */
-size_t mb_decode_char(char32_t *restrict dest, const char *restrict str);
+size_t mb_decode_char(int32_t *restrict dest, const char *restrict str);
 
 /* Decodes a string.
  * The destination buffer should be large enough to hold (len + 1) code points.
  * The output string is zero-terminated.
  * Returns the length of the decoded string.
  */
-size_t mb_utf8_decode(char32_t *restrict dest,
+size_t mb_utf8_decode(int32_t *restrict dest,
                       const char *restrict str, size_t len);
 
 /* Encodes a string.
@@ -37,7 +36,7 @@ size_t mb_utf8_decode(char32_t *restrict dest,
  * encoded string.
  */
 size_t mb_utf8_encode(char *restrict dest,
-                      const char32_t *restrict str, size_t len);
+                      const int32_t *restrict str, size_t len);
 
 /* Returns the number of code points in a UTF-8-encoded string. */
 size_t gn_utf8_len(const char *str, size_t len);

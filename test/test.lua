@@ -87,6 +87,29 @@ check{
    }
 }
 
+-- Ensure that matching also works for scripts that cannot be converted to an
+-- ASCII representation.
+check{
+   input = [[Автоматическая качающаяся аэрофотоустановка (АКАФУ)]],
+   output = {
+      "АКАФУ", "Автоматическая качающаяся аэрофотоустановка",
+   }
+}
+
+-- Ensure that we match correctly any type of bracket.
+check{
+   input = [[
+      Pression-État-Réponse (PER)
+      Pression-État-Réponse [PER]
+      Pression-État-Réponse {PER}
+   ]],
+   output = {
+      "PER", "Pression-État-Réponse",
+      "PER", "Pression-État-Réponse",
+      "PER", "Pression-État-Réponse",
+   }
+}
+
 -- Ensure that we handle nested brackets correctly when selecting the
 -- abbreviation meaning.
 check{
