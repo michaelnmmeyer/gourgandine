@@ -2,7 +2,6 @@
 #define GN_BUF_H
 
 #include <stddef.h>
-#include <stdarg.h>
 #include <string.h>
 #include <assert.h>
 #include <stdlib.h>

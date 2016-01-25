@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
 #include "mem.h"
 
@@ -21,15 +20,6 @@ void *gn_malloc(size_t size)
 {
    assert(size);
    void *mem = malloc(size);
-   if (!mem)
-      GN_OOM();
-   return mem;
-}
-
-void *gn_calloc(size_t nmemb, size_t size)
-{
-   assert(size);
-   void *mem = calloc(nmemb, size);
    if (!mem)
       GN_OOM();
    return mem;
