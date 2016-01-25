@@ -1,0 +1,8 @@
+"Usage: %s [options] [--] [file..]\n"
+"Extract acronym definitions from one or more files.\n"
+"\n"
+"Options:\n"
+"   -l, --lang            tokenization language [en]\n"
+"   -L, --list            display a list of the available tokenization languages\n"
+"   -h, --help            display this message\n"
+"       --version         display the library version\n"

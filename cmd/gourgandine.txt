@@ -1,0 +1,8 @@
+Usage: %s [options] [--] [file..]
+Extract acronym definitions from one or more files.
+
+Options:
+   -l, --lang            tokenization language [en]
+   -L, --list            display a list of the available tokenization languages
+   -h, --help            display this message
+       --version         display the library version
