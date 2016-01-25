@@ -52,56 +52,9 @@ void gn_extract(struct gourgandine *, const struct mr_token *sent, const struct 
 #define GN_IMP_H
 
 #include <stdint.h>
-#line 1 "buf.h"
-#ifndef GN_BUF_H
-#define GN_BUF_H
-
-#include <stddef.h>
-#include <string.h>
-#include <assert.h>
-#include <stdlib.h>
-
-struct gn_buf {
-   char *data;
-   size_t size, alloc;
-};
-
-#define GN_BUF_INIT {.data = ""}
-
-static inline void gn_buf_fini(struct gn_buf *buf)
-{
-   if (buf->alloc)
-      free(buf->data);
-}
-
-void gn_buf_grow(struct gn_buf *buf, size_t incr);
-
-/* Concatenates "data" at the end of a buffer. */
-void gn_buf_cat(struct gn_buf *buf, const void *data, size_t size);
-
-/* Same as above, for a character. */
-static inline void gn_buf_catc(struct gn_buf *buf, int c)
-{
-   gn_buf_grow(buf, 1);
-   buf->data[buf->size++] = c;
-   buf->data[buf->size] = '\0';
-}
-
-/* Truncation to a given size. */
-static inline void gn_buf_truncate(struct gn_buf *buf, size_t size)
-{
-   assert(size < buf->alloc || size == 0);
-   if (buf->alloc)
-      buf->data[buf->size = size] = '\0';
-}
-
-/* Truncation to the empty string. */
-#define gn_buf_clear(buf) gn_buf_truncate(buf, 0)
-
-#endif
-#line 6 "imp.h"
 
 struct gourgandine {
+   char *buf;
    /* Temporary buffer for normalizing an acronym and its expansion.
       Before trying to match an acronym against its expansion, we write
       here a string of the form:
@@ -112,7 +65,6 @@ struct gourgandine {
 
          acronym '\0' expansion '\0'
     */
-   struct gn_buf buf;
    
    int32_t *str;
    
@@ -194,7 +146,7 @@ struct gourgandine *gn_alloc(void)
 {
    struct gourgandine *gn = gn_malloc(sizeof *gn);
    *gn = (struct gourgandine){
-      .buf = GN_BUF_INIT,
+      .buf = GN_VEC_INIT,
       .str = GN_VEC_INIT,
       .acrs = GN_VEC_INIT,
       .tokens = GN_VEC_INIT,
@@ -214,7 +166,7 @@ const struct gn_acronym *gn_process(struct gourgandine *gn,
 
 void gn_dealloc(struct gourgandine *gn)
 {
-   gn_buf_fini(&gn->buf);
+   gn_vec_free(gn->buf);
    gn_vec_free(gn->str);
    gn_vec_free(gn->acrs);
    gn_vec_free(gn->tokens);
@@ -222,6 +174,38 @@ void gn_dealloc(struct gourgandine *gn)
 }
 #line 1 "buf.c"
 #include <stdio.h>
+#line 1 "buf.h"
+#ifndef GN_BUF_H
+#define GN_BUF_H
+
+#include <stddef.h>
+#include <string.h>
+#include <assert.h>
+#include <stdlib.h>
+
+struct gn_buf {
+   char *data;
+   size_t size, alloc;
+};
+
+#define GN_BUF_INIT {.data = ""}
+
+
+
+void gn_buf_grow(struct gn_buf *buf, size_t incr);
+
+/* Concatenates "data" at the end of a buffer. */
+void gn_buf_cat(struct gn_buf *buf, const void *data, size_t size);
+
+
+
+
+
+/* Truncation to the empty string. */
+#define gn_buf_clear(buf) gn_buf_truncate(buf, 0)
+
+#endif
+#line 3 "buf.c"
 
 #define MB_ENLARGE(buf, size, alloc, init) do {                                \
    const size_t size_ = (size);                                                \
@@ -247,7 +231,6 @@ void gn_buf_grow(struct gn_buf *buf, size_t size)
 
 void gn_buf_set(struct gn_buf *buf, const void *data, size_t size)
 {
-   gn_buf_clear(buf);
    gn_buf_cat(buf, data, size);
 }
 
@@ -953,6 +936,7 @@ size_t mr_next(struct mascara *, struct mr_token **);
 #define GN_UTF8_H
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdbool.h>
 
 bool gn_is_upper(int32_t c);
@@ -961,13 +945,9 @@ bool gn_is_alpha(int32_t c);
 bool gn_is_space(int32_t c);
 bool gn_is_double_quote(int32_t c);
 
-/* Encodes a single code point, returns the number of bytes written. */
 size_t gn_encode_char(char *dest, const int32_t c);
-
-/* Decodes a single code point, returns the number of bytes read. */
 size_t gn_decode_char(int32_t *restrict dest, const char *restrict str);
 
-/* Returns the number of code points in a UTF-8-encoded string. */
 size_t gn_utf8_len(const char *str, size_t len);
 
 #endif
@@ -1041,7 +1021,6 @@ static int32_t *push_letter(int32_t *str, int32_t c)
 
 static void clear_data(struct gourgandine *rec)
 {
-   gn_buf_clear(&rec->buf);
    gn_vec_clear(rec->str);
    gn_vec_clear(rec->tokens);
 }
@@ -1216,12 +1195,11 @@ static bool extract_fwd(struct gourgandine *rec, const struct mr_token *sent,
 
    if (gn_vec_len(rec->tokens) == 0)
       return false;
-   
-   const int32_t *str = rec->str;
-   if (*str != char_at(rec, 0, 0))
+
+   if (*rec->str != char_at(rec, 0, 0))
       return false;
    
-   size_t end = match_here(rec, &str[1], 0, 1);
+   size_t end = match_here(rec, &rec->str[1], 0, 1);
    if (!end)
       return false;
    
@@ -1273,10 +1251,10 @@ static bool pre_check(const struct mr_token *acr)
 }
 
 static bool post_check(const struct mr_token *sent,
-                       const struct span *abbr, const struct span *exp)
+                       size_t abbr, const struct span *exp)
 {
-   const char *abbr_str = sent[abbr->start].str;
-   size_t abbr_len = sent[abbr->end - 1].offset + sent[abbr->end - 1].len - sent[abbr->start].offset;
+   const char *abbr_str = sent[abbr].str;
+   size_t abbr_len = sent[abbr].len;
 
    const char *meaning = sent[exp->start].str;
    size_t meaning_len = sent[exp->end - 1].offset + sent[exp->end - 1].len - sent[exp->start].offset;
@@ -1336,77 +1314,6 @@ static bool post_check(const struct mr_token *sent,
    return true;
 }
 
-static void norm_exp(struct gn_buf *buf, const char *str, size_t len)
-{
-   gn_buf_grow(buf, len);
-   
-   for (size_t i = 0; i < len; ) {
-      int32_t c;
-      i += gn_decode_char(&c, &str[i]);
-      gn_buf_grow(buf, 2 * sizeof(int32_t));
-      
-      /* Skip quotation marks. */
-      if (gn_is_double_quote(c))
-         continue;
-      /* Reduce whitespace spans to a single space character. */
-      if (gn_is_space(c)) {
-         do {
-            /* Trailing spaces should already be removed. */
-            assert(i < len);
-            i += gn_decode_char(&c, &str[i]);
-         } while (gn_is_space(c));
-         buf->data[buf->size++] = ' ';
-      }
-      buf->size += gn_encode_char(&buf->data[buf->size], c);
-   }
-   gn_buf_truncate(buf, buf->size);
-}
-
-static void norm_abbr(struct gn_buf *buf, const char *str, size_t len)
-{
-   gn_buf_grow(buf, len);
-   char *bufp = &buf->data[buf->size];
-   
-   /* Drop internal periods. */
-   for (size_t i = 0; i < len; i++)
-      if (str[i] != '.')
-         *bufp++ = str[i];
-   
-   gn_buf_truncate(buf, bufp - buf->data);
-}
-
-static int save_acronym(struct gourgandine *gn,
-                        const struct span *acr, const struct span *exp)
-{
-   struct gn_acronym def = {
-      .acronym = acr->start,
-      .expansion_start = exp->start,
-      .expansion_end = exp->end,
-   };
-   gn_vec_push(gn->acrs, def);
-   return 0;
-}
-
-void gn_extract(struct gourgandine *rec, const struct mr_token *sent, const struct gn_acronym *def,
-                struct gn_str *acr, struct gn_str *exp)
-{
-   size_t exp_len = sent[def->expansion_end - 1].offset
-                  + sent[def->expansion_end - 1].len
-                  - sent[def->expansion_start].offset;
-
-   gn_buf_clear(&rec->buf);
-   norm_exp(&rec->buf, sent[def->expansion_start].str, exp_len);
-   exp->str = rec->buf.data;
-   exp->len = rec->buf.size;
-
-   gn_buf_catc(&rec->buf, '\0');
-   norm_abbr(&rec->buf, sent[def->acronym].str, sent[def->acronym].len);
-   acr->str = &rec->buf.data[exp->len + 1];
-   acr->len = rec->buf.size - exp->len - 1;
-}
-
-#define MAX_TOKENS 100
-
 static void rtrim_sym(const struct mr_token *sent, struct span *str)
 {
    while (str->end > str->start && sent[str->end - 1].type == MR_SYM)
@@ -1419,8 +1326,19 @@ static void ltrim_sym(const struct mr_token *sent, struct span *str)
       str->start++;
 }
 
-static int examine_context(struct gourgandine *rec, const struct mr_token *sent,
-                           struct span *exp, struct span *abbr)
+static int save_acronym(struct gourgandine *gn, size_t acr, const struct span *exp)
+{
+   struct gn_acronym def = {
+      .acronym = acr,
+      .expansion_start = exp->start,
+      .expansion_end = exp->end,
+   };
+   gn_vec_push(gn->acrs, def);
+   return 0;
+}
+
+static void examine_context(struct gourgandine *rec, const struct mr_token *sent,
+                            struct span *exp, struct span *abbr)
 {
    /* Drop uneeded symbols. We have the configuration:
     *
@@ -1442,17 +1360,14 @@ static int examine_context(struct gourgandine *rec, const struct mr_token *sent,
    
    /* Nothing to do if we end up with the empty string after truncation. */
    if (exp->start == exp->end || abbr->start == abbr->end)
-      return 0;
+      return;
 
    /* If the abbreviation would be too long, try the reverse form. */
    if (abbr->end - abbr->start != 1)
       goto reverse;
-
-   /* Avoid pathological cases. // FIXME maybe truncate here and also for the reverse form?*/
-   if (exp->end - exp->start > MAX_TOKENS)
-      exp->start = exp->end - MAX_TOKENS;
    
    /* Try the form <expansion> (<acronym>).
+    *
     * Hearst requires that an expansion doesn't contain more tokens than:
     *
     *    min(|abbr| + 5, |abbr| * 2)
@@ -1477,17 +1392,29 @@ static int examine_context(struct gourgandine *rec, const struct mr_token *sent,
     * So we leave that restriction out. To filter out invalid pairs,
     * some better criteria should be used.
     */
-   if (pre_check(&sent[abbr->start]) && extract_rev(rec, sent, abbr->start, exp) && post_check(sent, abbr, exp))
-      return save_acronym(rec, abbr, exp);
+   if (!pre_check(&sent[abbr->start]))
+      goto reverse;
+   if (!extract_rev(rec, sent, abbr->start, exp))
+      goto reverse;
+   if (!post_check(sent, abbr->start, exp))
+      goto reverse;
+
+   save_acronym(rec, abbr->start, exp);
+   return;
 
 reverse:
    /* Try the form <acronym> (<expansion>). We only look for an acronym
     * comprising a single token, but could also try with two token.
     */
    exp->start = exp->end - 1;
-   if (pre_check(&sent[exp->start]) && extract_fwd(rec, sent, exp->start, abbr) && post_check(sent, exp, abbr))
-      return save_acronym(rec, exp, abbr);
-   return 0;
+   if (!pre_check(&sent[exp->start]))
+      return;
+   if (!extract_fwd(rec, sent, exp->start, abbr))
+      return;
+   if (!post_check(sent, exp->start, abbr))
+      return;
+   
+   save_acronym(rec, exp->start, abbr);
 }
 
 static size_t find_closing_bracket(const struct mr_token *sent,
@@ -1585,6 +1512,66 @@ void *gn_realloc(void *mem, size_t size)
    if (!mem)
       GN_OOM();
    return mem;
+}
+#line 1 "normalize.c"
+
+static size_t norm_exp(char *buf, const char *str, size_t len)
+{
+   size_t new_len = 0;
+
+   for (size_t i = 0; i < len; ) {
+      int32_t c;
+      i += gn_decode_char(&c, &str[i]);
+      
+      /* Skip quotation marks. */
+      if (gn_is_double_quote(c))
+         continue;
+      /* Reduce whitespace spans to a single space character. */
+      if (gn_is_space(c)) {
+         do {
+            /* Trailing spaces should already be removed. */
+            assert(i < len);
+            i += gn_decode_char(&c, &str[i]);
+         } while (gn_is_space(c));
+         buf[new_len++] = ' ';
+      }
+      new_len += gn_encode_char(&buf[new_len], c);
+   }
+   return new_len;
+}
+
+static size_t norm_abbr(char *buf, const char *str, size_t len)
+{
+   size_t new_len = 0;
+
+   /* Drop internal periods. */
+   for (size_t i = 0; i < len; i++)
+      if (str[i] != '.')
+         buf[new_len++] = str[i];
+   return new_len;
+}
+
+void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
+                const struct gn_acronym *def,
+                struct gn_str *acr, struct gn_str *exp)
+{
+   size_t acr_len = sent[def->acronym].len;
+   size_t exp_len = sent[def->expansion_end - 1].offset
+                  + sent[def->expansion_end - 1].len
+                  - sent[def->expansion_start].offset;
+
+   gn_vec_clear(rec->buf);
+   gn_vec_grow(rec->buf, exp_len + 1 + acr_len + 1);
+
+   exp_len = norm_exp(rec->buf, sent[def->expansion_start].str, exp_len);
+   exp->str = rec->buf;
+   exp->len = exp_len;
+   rec->buf[exp_len] = '\0';
+
+   acr_len = norm_abbr(&rec->buf[exp_len + 1], sent[def->acronym].str, acr_len);
+   acr->str = &rec->buf[exp->len + 1];
+   acr->len = acr_len;
+   rec->buf[exp_len + 1 + acr_len] = '\0';
 }
 #line 1 "utf8.c"
 

@@ -2,13 +2,12 @@
 #include "imp.h"
 #include "mem.h"
 #include "vec.h"
-#include "buf.h"
 
 struct gourgandine *gn_alloc(void)
 {
    struct gourgandine *gn = gn_malloc(sizeof *gn);
    *gn = (struct gourgandine){
-      .buf = GN_BUF_INIT,
+      .buf = GN_VEC_INIT,
       .str = GN_VEC_INIT,
       .acrs = GN_VEC_INIT,
       .tokens = GN_VEC_INIT,
@@ -28,7 +27,7 @@ const struct gn_acronym *gn_process(struct gourgandine *gn,
 
 void gn_dealloc(struct gourgandine *gn)
 {
-   gn_buf_fini(&gn->buf);
+   gn_vec_free(gn->buf);
    gn_vec_free(gn->str);
    gn_vec_free(gn->acrs);
    gn_vec_free(gn->tokens);
