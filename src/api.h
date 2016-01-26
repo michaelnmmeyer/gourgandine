@@ -37,13 +37,18 @@ struct gn_acronym {
 struct mr_token;
 
 /* Finds acronym definitions in a sentence.
+ *
  * If an acronym definition is found in the provided sentence, fills the
  * provided acronym structure with informations about it, and returns 1.
  * Otherwise, leaves the acronym structure untouched, and returns 0.
+ *
  * This must be called several times in a loop to obtain all acronyms in a
  * sentence. Before the first call, the acronym structure must be zeroed.
  * Afterwards, the same structure must be passed again, untouched: the offsets
  * it contains are used to determine where to restart on each call.
+ *
+ * The provided sentence must be valid UTF-8. Otherwise, the result is
+ * undefined.
  */
 int gn_search(struct gourgandine *, const struct mr_token *sent, size_t sent_len,
               struct gn_acronym *);

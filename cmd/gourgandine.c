@@ -1,33 +1,61 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "cmd.h"
 #include "../gourgandine.h"
+#include "../src/vec.h"
 #include "../src/lib/mascara.h"
+#include "../src/lib/utf8proc.h"
 
 #define MAX_FILE_SIZE (50 * 1024 * 1024)
 
-static char *read_file(const char *path, size_t *sizep)
+static void *read_file(const char *path, size_t *size)
 {
    FILE *fp = stdin;
    if (path) {
       fp = fopen(path, "r");
-      if (!fp)
-         die("cannot open '%s':", path);
+      if (!fp) {
+         complain("cannot open '%s':", path);
+         return NULL;
+      }
+   } else {
+      path = "<stdin>";
    }
 
-   char *data = malloc(MAX_FILE_SIZE); // FIXME later
-   size_t size = fread(data, 1, MAX_FILE_SIZE, fp);
-
-   if (ferror(fp))
-      die("cannort read '%s':", path);
-   if (size == MAX_FILE_SIZE && !feof(fp))
-      die("input file too large (limit is %d)", MAX_FILE_SIZE);
-
+   uint8_t *buf = GN_VEC_INIT;
+   size_t len = 0;
+   
+   gn_vec_grow(buf, BUFSIZ);
+   while ((len = fread(&buf[gn_vec_len(buf)], 1, BUFSIZ, fp))) {
+      gn_vec_len(buf) += len;
+      if (gn_vec_len(buf) > MAX_FILE_SIZE) {
+         complain("input file '%s' too large (limit is %d)", path, MAX_FILE_SIZE);
+         goto fail;
+      }
+      gn_vec_grow(buf, BUFSIZ);
+   }
+   if (ferror(fp)) {
+      complain("cannot read '%s':", path);
+      goto fail;
+   }
    if (fp != stdin)
       fclose(fp);
 
-   *sizep = size;
-   return data;
+   uint8_t *nrm;
+   ssize_t ret = utf8proc_map(buf, gn_vec_len(buf), &nrm, UTF8PROC_STABLE | UTF8PROC_COMPOSE);
+   if (ret < 0) {
+      complain("cannot process file '%s': %s", path, utf8proc_errmsg(ret));
+      goto fail;
+   }
+
+   gn_vec_free(buf);
+   *size = ret;
+   return nrm;
+
+fail:
+   gn_vec_free(buf);
+   fclose(fp);
+   return NULL;
 }
 
 noreturn static void version(void)
@@ -44,6 +72,9 @@ static void process(struct mascara *mr, struct gourgandine *gn, const char *path
 {
    size_t len;
    char *str = read_file(path, &len);
+   if (!str)
+      return;
+
    mr_set_text(mr, str, len);
    
    struct mr_token *sent;

@@ -40,8 +40,6 @@ struct gourgandine {
 
 struct gn_acronym;
 
-int gn_run(struct gourgandine *rec, const struct mr_token *sent, size_t len, struct gn_acronym *);
-
 void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
                size_t abbr, const struct span *exp);
 

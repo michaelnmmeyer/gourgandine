@@ -76,7 +76,6 @@ static void encode_abbr(struct gourgandine *rec, const struct mr_token *acr)
       if (gn_is_alpha(c))
          rec->str = push_letter(rec->str, c);
    }
-   gn_vec_push(rec->str, '\t');
 }
 
 static void encode_exp(struct gourgandine *rec, const struct span *exp,
@@ -106,8 +105,6 @@ static void encode_exp(struct gourgandine *rec, const struct span *exp,
       if (in_token)
          gn_vec_push(rec->str, ' ');
    }
-   gn_vec_grow(rec->str, 1);
-   rec->str[gn_vec_len(rec->str)] = '\0';
 }
 
 void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
@@ -117,5 +114,8 @@ void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
    gn_vec_clear(rec->tokens);
    
    encode_abbr(rec, &sent[abbr]);
+   gn_vec_push(rec->str, '\t');
    encode_exp(rec, exp, sent);
+   gn_vec_grow(rec->str, 1);
+   rec->str[gn_vec_len(rec->str)] = '\0';
 }

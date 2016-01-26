@@ -733,8 +733,6 @@ struct gourgandine {
 
 struct gn_acronym;
 
-int gn_run(struct gourgandine *rec, const struct mr_token *sent, size_t len, struct gn_acronym *);
-
 void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
                size_t abbr, const struct span *exp);
 
@@ -873,7 +871,6 @@ static void encode_abbr(struct gourgandine *rec, const struct mr_token *acr)
       if (gn_is_alpha(c))
          rec->str = push_letter(rec->str, c);
    }
-   gn_vec_push(rec->str, '\t');
 }
 
 static void encode_exp(struct gourgandine *rec, const struct span *exp,
@@ -903,8 +900,6 @@ static void encode_exp(struct gourgandine *rec, const struct span *exp,
       if (in_token)
          gn_vec_push(rec->str, ' ');
    }
-   gn_vec_grow(rec->str, 1);
-   rec->str[gn_vec_len(rec->str)] = '\0';
 }
 
 void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
@@ -914,7 +909,10 @@ void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
    gn_vec_clear(rec->tokens);
    
    encode_abbr(rec, &sent[abbr]);
+   gn_vec_push(rec->str, '\t');
    encode_exp(rec, exp, sent);
+   gn_vec_grow(rec->str, 1);
+   rec->str[gn_vec_len(rec->str)] = '\0';
 }
 #line 1 "mem.c"
 #include <stdlib.h>
@@ -1012,13 +1010,18 @@ struct gn_acronym {
 struct mr_token;
 
 /* Finds acronym definitions in a sentence.
+ *
  * If an acronym definition is found in the provided sentence, fills the
  * provided acronym structure with informations about it, and returns 1.
  * Otherwise, leaves the acronym structure untouched, and returns 0.
+ *
  * This must be called several times in a loop to obtain all acronyms in a
  * sentence. Before the first call, the acronym structure must be zeroed.
  * Afterwards, the same structure must be passed again, untouched: the offsets
  * it contains are used to determine where to restart on each call.
+ *
+ * The provided sentence must be valid UTF-8. Otherwise, the result is
+ * undefined.
  */
 int gn_search(struct gourgandine *, const struct mr_token *sent, size_t sent_len,
               struct gn_acronym *);
@@ -1265,17 +1268,6 @@ static bool pre_check(const struct mr_token *acr)
 static bool post_check(const struct mr_token *sent,
                        size_t abbr, const struct span *exp)
 {
-   const char *abbr_str = sent[abbr].str;
-   size_t abbr_len = sent[abbr].len;
-
-   const char *meaning = sent[exp->start].str;
-   size_t meaning_len = sent[exp->end - 1].offset + sent[exp->end - 1].len - sent[exp->start].offset;
-
-   /* Check the expansion length. Should not be too large. */
-   size_t umlen = gn_utf8_len(meaning, meaning_len);
-   if (umlen > 100)
-      return false;
-   
    /* Check if there are unmatched brackets. If this is the case, this indicates
     * that we read too far back in the string, and made the meaning start in a
     * text segment which doesn't belong to the current one, e.g.:
@@ -1295,34 +1287,29 @@ static bool post_check(const struct mr_token *sent,
     *
     * The most common case, by far, is an unmatched closing bracket.
     */
-   int depth = 0;
-   for (size_t i = 0; i < meaning_len; i++) {
-      if (meaning[i] == ')') {
-         if (--depth < 0)
-            return false;
-      } else if (meaning[i] == '(') {
-         depth++;
-      }
+   int nest = 0;
+   for (size_t i = exp->start; i < exp->end; i++) {
+      if (sent[i].len != 1)
+         continue;
+      if (*sent[i].str == ')' && --nest < 0)
+         break;
+      else if (*sent[i].str == '(')
+         nest++;
    }
-   if (depth)
+   if (nest)
       return false;
    
-   /* Discard if len(abbr) / len(meaning) is not within a reasonable range.
-    * Ratios were determined experimentally, using German texts, which tend
-    * to include the highest one.
-    */
-   double ratio = gn_utf8_len(abbr_str, abbr_len) / (double)umlen;   
-   if (ratio >= 1. || ratio <= 0.037)
-      return false;
-   
-   /* Discard if the acronym is part of the meaning.
+   /* Discard if the acronym is part of the expansion.
     * We do this check _after_ the acronym is extracted because the acronym
     * might very well occur elsewhere in the same sentence, but not be included
     * in the expansion.
     */
-   for (size_t i = exp->start; i < exp->end; i++)
-      if (sent[i].len == abbr_len && !memcmp(sent[i].str, abbr_str, abbr_len))
+   for (size_t i = exp->start; i < exp->end; i++) {
+      if (sent[i].len != sent[abbr].len)
+         continue;
+      if (!memcmp(sent[i].str, sent[abbr].str, sent[abbr].len))
          return false;
+   }
    return true;
 }
 
@@ -1338,7 +1325,9 @@ static void ltrim_sym(const struct mr_token *sent, struct span *str)
       str->start++;
 }
 
-/* Avoid overflowing the stack during recursion. */
+/* Forcibly truncate too long expansions. Mainly, to avoid overflowing the stack
+ * during recursion.
+ */
 #define MAX_EXPANSION_LEN 100
 
 static int find_acronym(struct gourgandine *rec, const struct mr_token *sent,
@@ -1398,7 +1387,7 @@ static int find_acronym(struct gourgandine *rec, const struct mr_token *sent,
     * some better criteria should be used.
     */
    if (exp->end - exp->start > MAX_EXPANSION_LEN)
-      goto reverse;
+      exp->start = exp->end - MAX_EXPANSION_LEN;
    if (!pre_check(&sent[abbr->start]))
       goto reverse;
    if (!extract_rev(rec, sent, abbr->start, exp))
@@ -1418,7 +1407,7 @@ reverse:
     */
    exp->start = exp->end - 1;
    if (abbr->end - abbr->start > MAX_EXPANSION_LEN)
-      goto reverse;
+      abbr->start = abbr->end - MAX_EXPANSION_LEN;
    if (!pre_check(&sent[exp->start]))
       return 0;
    if (!extract_fwd(rec, sent, exp->start, abbr))
@@ -1465,7 +1454,7 @@ int gn_search(struct gourgandine *rec, const struct mr_token *sent, size_t len,
       /* <expansion> (<acronym>) <to_check...> */
       i = left.start = acr->acronym_end + 1;
    } else if (acr->expansion_end) {
-      /* <acronym> (<expansion> <to_check...> */
+      /* <acronym> (<expansion>)? <to_check...> */
       i = left.start = acr->expansion_end;
    } else {
        /* <to_check...>
@@ -1476,8 +1465,8 @@ int gn_search(struct gourgandine *rec, const struct mr_token *sent, size_t len,
       i = 1;
    }
    
-   /* End at sent->size - 2 because the opening bracket must be followed by at
-    * least one token (and maybe a closing bracket).
+   /* End at len - 1 because the opening bracket must be followed by at least
+    * one token (and maybe a closing bracket).
     */
    for ( ; i + 1 < len; i++) {
       if (sent[i].len != 1)
