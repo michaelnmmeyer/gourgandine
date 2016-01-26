@@ -1,191 +1,3 @@
-#line 1 "api.c"
-#line 1 "api.h"
-#ifndef GOURGANDINE_H
-#define GOURGANDINE_H
-
-#define GN_VERSION "0.2"
-
-#include <stddef.h>
-
-struct gourgandine *gn_alloc(void);
-void gn_dealloc(struct gourgandine *);
-
-/* An acronym definition. */
-struct gn_acronym {
-
-   /* Offset of the acronym in the sentence, counting in tokens. */
-   size_t acronym;
-
-   /* Start and end offset of the corresponding expansion, also counted in
-    * tokens. The expansion end offset is the offset of the token that follows
-    * the last word in the expansion, such that substracting from it the start
-    * index of the expansion gives the expansion length in tokens.
-    */
-   size_t expansion_start;
-   size_t expansion_end;
-};
-
-/* Declared in mascara.h (https://github.com/michaelnmmeyer/mascara). */
-struct mr_token;
-
-/* Process a single sentence.
- * Fills *nr with the number of acronyms found. Returns an array of acronym
- * definitions, or NULL if none was found.
- */
-const struct gn_acronym *gn_process(struct gourgandine *,
-                                    const struct mr_token *sent, size_t len,
-                                    size_t *nr);
-
-struct gn_str {
-   const char *str;
-   size_t len;
-};
-
-void gn_extract(struct gourgandine *, const struct mr_token *sent, const struct gn_acronym *,
-                struct gn_str *acr, struct gn_str *def);
-
-#endif
-#line 2 "api.c"
-#line 1 "imp.h"
-#ifndef GN_IMP_H
-#define GN_IMP_H
-
-#include <stdint.h>
-
-struct span {
-   size_t start;
-   size_t end;
-};
-
-struct gourgandine {
-
-   /* Buffer for normalizing an acronym and its expansion. They are stored
-    * consecutively: acronym '\0' expansion '\0'.
-    */
-   char *buf;
-
-   /* Buffer for holding the string to match, which is normalized. We write here
-    * a string of the form: acronym TAB (expansion_word SPACE)+.
-    */
-   int32_t *str;
-   
-   /* Over-segmenting tokens is necessary for matching, e.g.:
-    *
-    *    [GAP] D-glyercaldehyde 3-phosphate
-    *
-    * Our tokenizer doesn't split on '-', in particular, so we must perform a
-    * new segmentation of each token. The following keeps track of the relation
-    * between the token chunks we produce here and the position of the
-    * corresponding token in the input sentence, so that we can obtain correct
-    * offsets after processing.
-    */
-   struct assoc {
-      /* Offset in the "str" of the current normalized token. */
-      size_t norm_off;
-      /* Position of the corresponding real token in the sentence. */
-      size_t token_no;
-   } *tokens;
-
-   /* Acronyms gathered so far. */
-   struct gn_acronym *acrs;
-};
-
-void gn_run(struct gourgandine *rec, const struct mr_token *sent, size_t len);
-
-void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
-               size_t abbr, const struct span *exp);
-
-#endif
-#line 3 "api.c"
-#line 1 "mem.h"
-#ifndef GN_MEM_H
-#define GN_MEM_H
-
-#include <stddef.h>
-#include <stdarg.h>
-#include <stdnoreturn.h>
-
-noreturn void gn_fatal(const char *msg, ...);
-
-void *gn_malloc(size_t)
-#ifdef ___GNUC__
-   __attribute__((malloc))
-#endif
-   ;
-
-void *gn_realloc(void *, size_t);
-
-#endif
-#line 4 "api.c"
-#line 1 "vec.h"
-#ifndef GN_VEC_H
-#define GN_VEC_H
-
-#include <stdlib.h>
-
-extern size_t gn_vec_void[2];
-
-#define GN_VEC_INIT (void *)&gn_vec_void[2]
-
-#define gn_vec_header(vec) ((size_t *)((char *)(vec) - sizeof gn_vec_void))
-
-#define gn_vec_len(vec)  gn_vec_header(vec)[0]
-#define gn_vec_free(vec) gn_vec_free(gn_vec_header(vec))
-
-#define gn_vec_grow(vec, nr) do {                                              \
-   vec = gn_vec_grow(gn_vec_header(vec), nr, sizeof *(vec));                   \
-} while (0)
-
-#define gn_vec_clear(vec) do {                                                 \
-   gn_vec_len(vec) = 0;                                                        \
-} while (0)
-
-#define gn_vec_push(vec, x) do {                                               \
-   gn_vec_grow(vec, 1);                                                        \
-   vec[gn_vec_len(vec)++] = x;                                                 \
-} while (0)
-
-void *(gn_vec_grow)(size_t *vec, size_t incr, size_t elt_size);
-
-static inline void (gn_vec_free)(size_t *vec)
-{
-   if (vec != gn_vec_void)
-      free(vec);
-}
-
-#endif
-#line 5 "api.c"
-
-struct gourgandine *gn_alloc(void)
-{
-   struct gourgandine *gn = gn_malloc(sizeof *gn);
-   *gn = (struct gourgandine){
-      .buf = GN_VEC_INIT,
-      .str = GN_VEC_INIT,
-      .acrs = GN_VEC_INIT,
-      .tokens = GN_VEC_INIT,
-   };
-   return gn;
-}
-
-const struct gn_acronym *gn_process(struct gourgandine *gn,
-                                    const struct mr_token *sent, size_t len,
-                                    size_t *nr)
-{
-   gn_vec_clear(gn->acrs);
-   gn_run(gn, sent, len);
-   *nr = gn_vec_len(gn->acrs);
-   return *nr ? gn->acrs : NULL;
-}
-
-void gn_dealloc(struct gourgandine *gn)
-{
-   gn_vec_free(gn->buf);
-   gn_vec_free(gn->str);
-   gn_vec_free(gn->acrs);
-   gn_vec_free(gn->tokens);
-   free(gn);
-}
 #line 1 "encode.c"
 #include <assert.h>
 #line 1 "utf8proc.h"
@@ -878,6 +690,58 @@ size_t mr_next(struct mascara *, struct mr_token **);
 
 #endif
 #line 4 "encode.c"
+#line 1 "imp.h"
+#ifndef GN_IMP_H
+#define GN_IMP_H
+
+#include <stdint.h>
+
+struct span {
+   size_t start;
+   size_t end;
+};
+
+struct gourgandine {
+
+   /* Buffer for normalizing an acronym and its expansion. They are stored
+    * consecutively: acronym '\0' expansion '\0'.
+    */
+   char *buf;
+
+   /* Buffer for holding the string to match, which is normalized. We write here
+    * a string of the form: acronym TAB (expansion_word SPACE)+.
+    */
+   int32_t *str;
+   
+   /* Over-segmenting tokens is necessary for matching, e.g.:
+    *
+    *    [GAP] D-glyercaldehyde 3-phosphate
+    *
+    * Our tokenizer doesn't split on '-', in particular, so we must perform a
+    * new segmentation of each token. The following keeps track of the relation
+    * between the token chunks we produce here and the position of the
+    * corresponding token in the input sentence, so that we can obtain correct
+    * offsets after processing.
+    */
+   struct assoc {
+      /* Offset in the "str" of the current normalized token. */
+      size_t norm_off;
+      /* Position of the corresponding real token in the sentence. */
+      size_t token_no;
+   } *tokens;
+};
+
+struct gn_acronym;
+
+int gn_run(struct gourgandine *rec, const struct mr_token *sent, size_t len, struct gn_acronym *);
+
+void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
+               size_t abbr, const struct span *exp);
+
+void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
+                struct gn_acronym *def);
+#endif
+#line 5 "encode.c"
 #line 1 "utf8.h"
 #ifndef GN_UTF8_H
 #define GN_UTF8_H
@@ -899,6 +763,44 @@ size_t gn_utf8_len(const char *str, size_t len);
 
 #endif
 #line 6 "encode.c"
+#line 1 "vec.h"
+#ifndef GN_VEC_H
+#define GN_VEC_H
+
+#include <stdlib.h>
+
+extern size_t gn_vec_void[2];
+
+#define GN_VEC_INIT (void *)&gn_vec_void[2]
+
+#define gn_vec_header(vec) ((size_t *)((char *)(vec) - sizeof gn_vec_void))
+
+#define gn_vec_len(vec)  gn_vec_header(vec)[0]
+#define gn_vec_free(vec) gn_vec_free(gn_vec_header(vec))
+
+#define gn_vec_grow(vec, nr) do {                                              \
+   vec = gn_vec_grow(gn_vec_header(vec), nr, sizeof *(vec));                   \
+} while (0)
+
+#define gn_vec_clear(vec) do {                                                 \
+   gn_vec_len(vec) = 0;                                                        \
+} while (0)
+
+#define gn_vec_push(vec, x) do {                                               \
+   gn_vec_grow(vec, 1);                                                        \
+   vec[gn_vec_len(vec)++] = x;                                                 \
+} while (0)
+
+void *(gn_vec_grow)(size_t *vec, size_t incr, size_t elt_size);
+
+static inline void (gn_vec_free)(size_t *vec)
+{
+   if (vec != gn_vec_void)
+      free(vec);
+}
+
+#endif
+#line 7 "encode.c"
 
 /* Before comparing an acronym to its expansion, we do the following:
  * (a) Use Unicode decomposition mappings (NFKC).
@@ -1014,7 +916,174 @@ void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
    encode_abbr(rec, &sent[abbr]);
    encode_exp(rec, exp, sent);
 }
-#line 1 "imp.c"
+#line 1 "mem.c"
+#include <stdlib.h>
+#include <stdio.h>
+#line 1 "mem.h"
+#ifndef GN_MEM_H
+#define GN_MEM_H
+
+#include <stddef.h>
+#include <stdarg.h>
+#include <stdnoreturn.h>
+
+noreturn void gn_fatal(const char *msg, ...);
+
+void *gn_malloc(size_t)
+#ifdef ___GNUC__
+   __attribute__((malloc))
+#endif
+   ;
+
+void *gn_realloc(void *, size_t);
+
+#endif
+#line 4 "mem.c"
+
+noreturn void gn_fatal(const char *msg, ...)
+{
+   va_list ap;
+
+   fputs("gourgandine: ", stderr);
+   va_start(ap, msg);
+   vfprintf(stderr, msg, ap);
+   va_end(ap);
+   putc('\n', stderr);
+   abort();
+}
+
+#define GN_OOM() gn_fatal("out of memory")
+
+void *gn_malloc(size_t size)
+{
+   assert(size);
+   void *mem = malloc(size);
+   if (!mem)
+      GN_OOM();
+   return mem;
+}
+
+void *gn_realloc(void *mem, size_t size)
+{
+   assert(size);
+   mem = realloc(mem, size);
+   if (!mem)
+      GN_OOM();
+   return mem;
+}
+#line 1 "normalize.c"
+#line 1 "api.h"
+#ifndef GOURGANDINE_H
+#define GOURGANDINE_H
+
+#define GN_VERSION "0.2"
+
+#include <stddef.h>
+
+struct gourgandine *gn_alloc(void);
+void gn_dealloc(struct gourgandine *);
+
+/* An acronym definition. */
+struct gn_acronym {
+
+   /* The acronym and its expansion, normalized: periods are removed in the
+    * acronym, while double quotes and excessive white space are trimmed in the
+    * corresponding expansion. These strings do not point into the source
+    * text. They are nul-terminated.
+    */
+   const char *acronym;
+   size_t acronym_len;
+   const char *expansion;
+   size_t expansion_len;
+
+   /* Start and end offset, in the input sentence, of the acronym and its
+    * expansion. We count in tokens. The end offset of the expansion is the
+    * offset of the token that follows its last word in the input sentence,
+    * such that substracting the expansion start offset from it gives the
+    * length, in tokens, of the expansion. The same applies to the abbreviation.
+    */
+   size_t acronym_start;
+   size_t acronym_end;
+   size_t expansion_start;
+   size_t expansion_end;
+};
+
+/* Declared in mascara.h (https://github.com/michaelnmmeyer/mascara). */
+struct mr_token;
+
+/* Finds acronym definitions in a sentence.
+ * If an acronym definition is found in the provided sentence, fills the
+ * provided acronym structure with informations about it, and returns 1.
+ * Otherwise, leaves the acronym structure untouched, and returns 0.
+ * This must be called several times in a loop to obtain all acronyms in a
+ * sentence. Before the first call, the acronym structure must be zeroed.
+ * Afterwards, the same structure must be passed again, untouched: the offsets
+ * it contains are used to determine where to restart on each call.
+ */
+int gn_search(struct gourgandine *, const struct mr_token *sent, size_t sent_len,
+              struct gn_acronym *);
+
+#endif
+#line 3 "normalize.c"
+
+static size_t norm_exp(char *buf, const char *str, size_t len)
+{
+   size_t new_len = 0;
+
+   for (size_t i = 0; i < len; ) {
+      int32_t c;
+      i += gn_decode_char(&c, &str[i]);
+      
+      /* Skip quotation marks. */
+      if (gn_is_double_quote(c))
+         continue;
+      /* Reduce whitespace spans to a single space character. */
+      if (gn_is_space(c)) {
+         do {
+            /* Trailing spaces should already be removed. */
+            assert(i < len);
+            i += gn_decode_char(&c, &str[i]);
+         } while (gn_is_space(c));
+         buf[new_len++] = ' ';
+      }
+      new_len += gn_encode_char(&buf[new_len], c);
+   }
+   return new_len;
+}
+
+static size_t norm_abbr(char *buf, const char *str, size_t len)
+{
+   size_t new_len = 0;
+
+   /* Drop internal periods. */
+   for (size_t i = 0; i < len; i++)
+      if (str[i] != '.')
+         buf[new_len++] = str[i];
+   return new_len;
+}
+
+void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
+                struct gn_acronym *def)
+{
+   size_t acr_len = sent[def->acronym_start].len;
+   size_t exp_len = sent[def->expansion_end - 1].offset
+                  + sent[def->expansion_end - 1].len
+                  - sent[def->expansion_start].offset;
+
+   gn_vec_clear(rec->buf);
+   gn_vec_grow(rec->buf, exp_len + 1 + acr_len + 1);
+
+   exp_len = norm_exp(rec->buf, sent[def->expansion_start].str, exp_len);
+   def->expansion = rec->buf;
+   def->expansion_len = exp_len;
+   rec->buf[exp_len] = '\0';
+
+   acr_len = norm_abbr(&rec->buf[exp_len + 1], sent[def->acronym_start].str, acr_len);
+   def->acronym = &rec->buf[exp_len + 1];
+   def->acronym_len = acr_len;
+   rec->buf[exp_len + 1 + acr_len] = '\0';
+}
+#line 1 "search.c"
 #include <string.h>
 #include <assert.h>
 
@@ -1269,19 +1338,12 @@ static void ltrim_sym(const struct mr_token *sent, struct span *str)
       str->start++;
 }
 
-static int save_acronym(struct gourgandine *gn, size_t acr, const struct span *exp)
-{
-   struct gn_acronym def = {
-      .acronym = acr,
-      .expansion_start = exp->start,
-      .expansion_end = exp->end,
-   };
-   gn_vec_push(gn->acrs, def);
-   return 0;
-}
+/* Avoid overflowing the stack during recursion. */
+#define MAX_EXPANSION_LEN 100
 
-static void examine_context(struct gourgandine *rec, const struct mr_token *sent,
-                            struct span *exp, struct span *abbr)
+static int find_acronym(struct gourgandine *rec, const struct mr_token *sent,
+                        struct span *exp, struct span *abbr,
+                        struct gn_acronym *acr)
 {
    /* Drop uneeded symbols. We have the configuration:
     *
@@ -1303,7 +1365,7 @@ static void examine_context(struct gourgandine *rec, const struct mr_token *sent
    
    /* Nothing to do if we end up with the empty string after truncation. */
    if (exp->start == exp->end || abbr->start == abbr->end)
-      return;
+      return 0;
 
    /* If the abbreviation would be too long, try the reverse form. */
    if (abbr->end - abbr->start != 1)
@@ -1335,6 +1397,8 @@ static void examine_context(struct gourgandine *rec, const struct mr_token *sent
     * So we leave that restriction out. To filter out invalid pairs,
     * some better criteria should be used.
     */
+   if (exp->end - exp->start > MAX_EXPANSION_LEN)
+      goto reverse;
    if (!pre_check(&sent[abbr->start]))
       goto reverse;
    if (!extract_rev(rec, sent, abbr->start, exp))
@@ -1342,22 +1406,31 @@ static void examine_context(struct gourgandine *rec, const struct mr_token *sent
    if (!post_check(sent, abbr->start, exp))
       goto reverse;
 
-   save_acronym(rec, abbr->start, exp);
-   return;
+   acr->acronym_start = abbr->start;
+   acr->acronym_end = abbr->end;
+   acr->expansion_start = exp->start;
+   acr->expansion_end = exp->end;
+   return 1;
 
 reverse:
    /* Try the form <acronym> (<expansion>). We only look for an acronym
     * comprising a single token, but could also try with two token.
     */
    exp->start = exp->end - 1;
+   if (abbr->end - abbr->start > MAX_EXPANSION_LEN)
+      goto reverse;
    if (!pre_check(&sent[exp->start]))
-      return;
+      return 0;
    if (!extract_fwd(rec, sent, exp->start, abbr))
-      return;
+      return 0;
    if (!post_check(sent, exp->start, abbr))
-      return;
-   
-   save_acronym(rec, exp->start, abbr);
+      return 0;
+
+   acr->acronym_start = exp->start;
+   acr->acronym_end = exp->end;
+   acr->expansion_start = abbr->start;
+   acr->expansion_end = abbr->end;
+   return 1;
 }
 
 static size_t find_closing_bracket(const struct mr_token *sent,
@@ -1381,18 +1454,32 @@ static size_t find_closing_bracket(const struct mr_token *sent,
    return nest >= 0 ? pos : 0;
 }
 
-void gn_run(struct gourgandine *rec, const struct mr_token *sent, size_t len)
+int gn_search(struct gourgandine *rec, const struct mr_token *sent, size_t len,
+              struct gn_acronym *acr)
 {
    struct span left, right;
    size_t lb, rb;
+   size_t i;
    
-   left.start = 0;
+   if (acr->acronym_start > acr->expansion_end) {
+      /* <expansion> (<acronym>) <to_check...> */
+      i = left.start = acr->acronym_end + 1;
+   } else if (acr->expansion_end) {
+      /* <acronym> (<expansion> <to_check...> */
+      i = left.start = acr->expansion_end;
+   } else {
+       /* <to_check...>
+        * Start i at 1 because there must be at least one token before the first
+        * opening bracket.
+        */
+      left.start = 0;
+      i = 1;
+   }
    
-   /* Start at 1 because there must be at least one token before the first
-    * opening bracket. End at sent->size - 2 because the opening bracket must
-    * be followed by at least one token and then a closing bracket.
+   /* End at sent->size - 2 because the opening bracket must be followed by at
+    * least one token (and maybe a closing bracket).
     */
-   for (size_t i = 1; i + 2 < len; i++) {
+   for ( ; i + 1 < len; i++) {
       if (sent[i].len != 1)
          continue;
       switch (*sent[i].str) {
@@ -1417,104 +1504,32 @@ void gn_run(struct gourgandine *rec, const struct mr_token *sent, size_t len)
       if (right.end) {
          left.end = i;
          right.start = i + 1;
-         examine_context(rec, sent, &left, &right);
+         if (find_acronym(rec, sent, &left, &right, acr)) {
+            gn_extract(rec, sent, acr);
+            return 1;
+         }
       }
    }
-}
-#line 1 "mem.c"
-#include <stdlib.h>
-#include <stdio.h>
-
-noreturn void gn_fatal(const char *msg, ...)
-{
-   va_list ap;
-
-   fputs("gourgandine: ", stderr);
-   va_start(ap, msg);
-   vfprintf(stderr, msg, ap);
-   va_end(ap);
-   putc('\n', stderr);
-   abort();
+   return 0;
 }
 
-#define GN_OOM() gn_fatal("out of memory")
-
-void *gn_malloc(size_t size)
+struct gourgandine *gn_alloc(void)
 {
-   assert(size);
-   void *mem = malloc(size);
-   if (!mem)
-      GN_OOM();
-   return mem;
+   struct gourgandine *gn = gn_malloc(sizeof *gn);
+   *gn = (struct gourgandine){
+      .buf = GN_VEC_INIT,
+      .str = GN_VEC_INIT,
+      .tokens = GN_VEC_INIT,
+   };
+   return gn;
 }
 
-void *gn_realloc(void *mem, size_t size)
+void gn_dealloc(struct gourgandine *gn)
 {
-   assert(size);
-   mem = realloc(mem, size);
-   if (!mem)
-      GN_OOM();
-   return mem;
-}
-#line 1 "normalize.c"
-
-static size_t norm_exp(char *buf, const char *str, size_t len)
-{
-   size_t new_len = 0;
-
-   for (size_t i = 0; i < len; ) {
-      int32_t c;
-      i += gn_decode_char(&c, &str[i]);
-      
-      /* Skip quotation marks. */
-      if (gn_is_double_quote(c))
-         continue;
-      /* Reduce whitespace spans to a single space character. */
-      if (gn_is_space(c)) {
-         do {
-            /* Trailing spaces should already be removed. */
-            assert(i < len);
-            i += gn_decode_char(&c, &str[i]);
-         } while (gn_is_space(c));
-         buf[new_len++] = ' ';
-      }
-      new_len += gn_encode_char(&buf[new_len], c);
-   }
-   return new_len;
-}
-
-static size_t norm_abbr(char *buf, const char *str, size_t len)
-{
-   size_t new_len = 0;
-
-   /* Drop internal periods. */
-   for (size_t i = 0; i < len; i++)
-      if (str[i] != '.')
-         buf[new_len++] = str[i];
-   return new_len;
-}
-
-void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
-                const struct gn_acronym *def,
-                struct gn_str *acr, struct gn_str *exp)
-{
-   size_t acr_len = sent[def->acronym].len;
-   size_t exp_len = sent[def->expansion_end - 1].offset
-                  + sent[def->expansion_end - 1].len
-                  - sent[def->expansion_start].offset;
-
-   gn_vec_clear(rec->buf);
-   gn_vec_grow(rec->buf, exp_len + 1 + acr_len + 1);
-
-   exp_len = norm_exp(rec->buf, sent[def->expansion_start].str, exp_len);
-   exp->str = rec->buf;
-   exp->len = exp_len;
-   rec->buf[exp_len] = '\0';
-
-   acr_len = norm_abbr(&rec->buf[exp_len + 1], sent[def->acronym].str, acr_len);
-   acr->str = &rec->buf[exp->len + 1];
-   acr->len = acr_len;
-   rec->buf[exp_len + 1 + acr_len] = '\0';
+   gn_vec_free(gn->buf);
+   gn_vec_free(gn->str);
+   gn_vec_free(gn->tokens);
+   free(gn);
 }
 #line 1 "utf8.c"
 

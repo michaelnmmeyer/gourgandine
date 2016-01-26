@@ -11,14 +11,24 @@ void gn_dealloc(struct gourgandine *);
 /* An acronym definition. */
 struct gn_acronym {
 
-   /* Offset of the acronym in the sentence, counting in tokens. */
-   size_t acronym;
-
-   /* Start and end offset of the corresponding expansion, also counted in
-    * tokens. The expansion end offset is the offset of the token that follows
-    * the last word in the expansion, such that substracting from it the start
-    * index of the expansion gives the expansion length in tokens.
+   /* The acronym and its expansion, normalized: periods are removed in the
+    * acronym, while double quotes and excessive white space are trimmed in the
+    * corresponding expansion. These strings do not point into the source
+    * text. They are nul-terminated.
     */
+   const char *acronym;
+   size_t acronym_len;
+   const char *expansion;
+   size_t expansion_len;
+
+   /* Start and end offset, in the input sentence, of the acronym and its
+    * expansion. We count in tokens. The end offset of the expansion is the
+    * offset of the token that follows its last word in the input sentence,
+    * such that substracting the expansion start offset from it gives the
+    * length, in tokens, of the expansion. The same applies to the abbreviation.
+    */
+   size_t acronym_start;
+   size_t acronym_end;
    size_t expansion_start;
    size_t expansion_end;
 };
@@ -26,20 +36,16 @@ struct gn_acronym {
 /* Declared in mascara.h (https://github.com/michaelnmmeyer/mascara). */
 struct mr_token;
 
-/* Process a single sentence.
- * Fills *nr with the number of acronyms found. Returns an array of acronym
- * definitions, or NULL if none was found.
+/* Finds acronym definitions in a sentence.
+ * If an acronym definition is found in the provided sentence, fills the
+ * provided acronym structure with informations about it, and returns 1.
+ * Otherwise, leaves the acronym structure untouched, and returns 0.
+ * This must be called several times in a loop to obtain all acronyms in a
+ * sentence. Before the first call, the acronym structure must be zeroed.
+ * Afterwards, the same structure must be passed again, untouched: the offsets
+ * it contains are used to determine where to restart on each call.
  */
-const struct gn_acronym *gn_process(struct gourgandine *,
-                                    const struct mr_token *sent, size_t len,
-                                    size_t *nr);
-
-struct gn_str {
-   const char *str;
-   size_t len;
-};
-
-void gn_extract(struct gourgandine *, const struct mr_token *sent, const struct gn_acronym *,
-                struct gn_str *acr, struct gn_str *def);
+int gn_search(struct gourgandine *, const struct mr_token *sent, size_t sent_len,
+              struct gn_acronym *);
 
 #endif

@@ -1,4 +1,5 @@
 #include "imp.h"
+#include "api.h"
 
 static size_t norm_exp(char *buf, const char *str, size_t len)
 {
@@ -37,10 +38,9 @@ static size_t norm_abbr(char *buf, const char *str, size_t len)
 }
 
 void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
-                const struct gn_acronym *def,
-                struct gn_str *acr, struct gn_str *exp)
+                struct gn_acronym *def)
 {
-   size_t acr_len = sent[def->acronym].len;
+   size_t acr_len = sent[def->acronym_start].len;
    size_t exp_len = sent[def->expansion_end - 1].offset
                   + sent[def->expansion_end - 1].len
                   - sent[def->expansion_start].offset;
@@ -49,12 +49,12 @@ void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
    gn_vec_grow(rec->buf, exp_len + 1 + acr_len + 1);
 
    exp_len = norm_exp(rec->buf, sent[def->expansion_start].str, exp_len);
-   exp->str = rec->buf;
-   exp->len = exp_len;
+   def->expansion = rec->buf;
+   def->expansion_len = exp_len;
    rec->buf[exp_len] = '\0';
 
-   acr_len = norm_abbr(&rec->buf[exp_len + 1], sent[def->acronym].str, acr_len);
-   acr->str = &rec->buf[exp->len + 1];
-   acr->len = acr_len;
+   acr_len = norm_abbr(&rec->buf[exp_len + 1], sent[def->acronym_start].str, acr_len);
+   def->acronym = &rec->buf[exp_len + 1];
+   def->acronym_len = acr_len;
    rec->buf[exp_len + 1 + acr_len] = '\0';
 }

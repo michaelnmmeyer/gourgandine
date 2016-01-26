@@ -36,14 +36,15 @@ struct gourgandine {
       /* Position of the corresponding real token in the sentence. */
       size_t token_no;
    } *tokens;
-
-   /* Acronyms gathered so far. */
-   struct gn_acronym *acrs;
 };
 
-void gn_run(struct gourgandine *rec, const struct mr_token *sent, size_t len);
+struct gn_acronym;
+
+int gn_run(struct gourgandine *rec, const struct mr_token *sent, size_t len, struct gn_acronym *);
 
 void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
                size_t abbr, const struct span *exp);
 
+void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
+                struct gn_acronym *def);
 #endif

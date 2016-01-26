@@ -259,19 +259,12 @@ static void ltrim_sym(const struct mr_token *sent, struct span *str)
       str->start++;
 }
 
-static int save_acronym(struct gourgandine *gn, size_t acr, const struct span *exp)
-{
-   struct gn_acronym def = {
-      .acronym = acr,
-      .expansion_start = exp->start,
-      .expansion_end = exp->end,
-   };
-   gn_vec_push(gn->acrs, def);
-   return 0;
-}
+/* Avoid overflowing the stack during recursion. */
+#define MAX_EXPANSION_LEN 100
 
-static void examine_context(struct gourgandine *rec, const struct mr_token *sent,
-                            struct span *exp, struct span *abbr)
+static int find_acronym(struct gourgandine *rec, const struct mr_token *sent,
+                        struct span *exp, struct span *abbr,
+                        struct gn_acronym *acr)
 {
    /* Drop uneeded symbols. We have the configuration:
     *
@@ -293,7 +286,7 @@ static void examine_context(struct gourgandine *rec, const struct mr_token *sent
    
    /* Nothing to do if we end up with the empty string after truncation. */
    if (exp->start == exp->end || abbr->start == abbr->end)
-      return;
+      return 0;
 
    /* If the abbreviation would be too long, try the reverse form. */
    if (abbr->end - abbr->start != 1)
@@ -325,6 +318,8 @@ static void examine_context(struct gourgandine *rec, const struct mr_token *sent
     * So we leave that restriction out. To filter out invalid pairs,
     * some better criteria should be used.
     */
+   if (exp->end - exp->start > MAX_EXPANSION_LEN)
+      goto reverse;
    if (!pre_check(&sent[abbr->start]))
       goto reverse;
    if (!extract_rev(rec, sent, abbr->start, exp))
@@ -332,22 +327,31 @@ static void examine_context(struct gourgandine *rec, const struct mr_token *sent
    if (!post_check(sent, abbr->start, exp))
       goto reverse;
 
-   save_acronym(rec, abbr->start, exp);
-   return;
+   acr->acronym_start = abbr->start;
+   acr->acronym_end = abbr->end;
+   acr->expansion_start = exp->start;
+   acr->expansion_end = exp->end;
+   return 1;
 
 reverse:
    /* Try the form <acronym> (<expansion>). We only look for an acronym
     * comprising a single token, but could also try with two token.
     */
    exp->start = exp->end - 1;
+   if (abbr->end - abbr->start > MAX_EXPANSION_LEN)
+      goto reverse;
    if (!pre_check(&sent[exp->start]))
-      return;
+      return 0;
    if (!extract_fwd(rec, sent, exp->start, abbr))
-      return;
+      return 0;
    if (!post_check(sent, exp->start, abbr))
-      return;
-   
-   save_acronym(rec, exp->start, abbr);
+      return 0;
+
+   acr->acronym_start = exp->start;
+   acr->acronym_end = exp->end;
+   acr->expansion_start = abbr->start;
+   acr->expansion_end = abbr->end;
+   return 1;
 }
 
 static size_t find_closing_bracket(const struct mr_token *sent,
@@ -371,18 +375,32 @@ static size_t find_closing_bracket(const struct mr_token *sent,
    return nest >= 0 ? pos : 0;
 }
 
-void gn_run(struct gourgandine *rec, const struct mr_token *sent, size_t len)
+int gn_search(struct gourgandine *rec, const struct mr_token *sent, size_t len,
+              struct gn_acronym *acr)
 {
    struct span left, right;
    size_t lb, rb;
+   size_t i;
    
-   left.start = 0;
+   if (acr->acronym_start > acr->expansion_end) {
+      /* <expansion> (<acronym>) <to_check...> */
+      i = left.start = acr->acronym_end + 1;
+   } else if (acr->expansion_end) {
+      /* <acronym> (<expansion> <to_check...> */
+      i = left.start = acr->expansion_end;
+   } else {
+       /* <to_check...>
+        * Start i at 1 because there must be at least one token before the first
+        * opening bracket.
+        */
+      left.start = 0;
+      i = 1;
+   }
    
-   /* Start at 1 because there must be at least one token before the first
-    * opening bracket. End at sent->size - 2 because the opening bracket must
-    * be followed by at least one token and then a closing bracket.
+   /* End at sent->size - 2 because the opening bracket must be followed by at
+    * least one token (and maybe a closing bracket).
     */
-   for (size_t i = 1; i + 2 < len; i++) {
+   for ( ; i + 1 < len; i++) {
       if (sent[i].len != 1)
          continue;
       switch (*sent[i].str) {
@@ -407,7 +425,30 @@ void gn_run(struct gourgandine *rec, const struct mr_token *sent, size_t len)
       if (right.end) {
          left.end = i;
          right.start = i + 1;
-         examine_context(rec, sent, &left, &right);
+         if (find_acronym(rec, sent, &left, &right, acr)) {
+            gn_extract(rec, sent, acr);
+            return 1;
+         }
       }
    }
+   return 0;
+}
+
+struct gourgandine *gn_alloc(void)
+{
+   struct gourgandine *gn = gn_malloc(sizeof *gn);
+   *gn = (struct gourgandine){
+      .buf = GN_VEC_INIT,
+      .str = GN_VEC_INIT,
+      .tokens = GN_VEC_INIT,
+   };
+   return gn;
+}
+
+void gn_dealloc(struct gourgandine *gn)
+{
+   gn_vec_free(gn->buf);
+   gn_vec_free(gn->str);
+   gn_vec_free(gn->tokens);
+   free(gn);
 }

@@ -38,15 +38,13 @@ static int gn_lua_extract(lua_State *lua)
    
    lua_newtable(lua);
    if (sent_len) {
-      size_t nr;
-      const struct gn_acronym *defs = gn_process(*gn, sent, sent_len, &nr);
-      for (size_t i = 0; i < nr; i++) {
-         struct gn_str acr, exp;
-         gn_extract(*gn, sent, &defs[i], &acr, &exp);
-         lua_pushlstring(lua, acr.str, acr.len);
-         lua_rawseti(lua, -2, i * 2 + 1);
-         lua_pushlstring(lua, exp.str, exp.len);
-         lua_rawseti(lua, -2, i * 2 + 2);
+      struct gn_acronym def = {0};
+      size_t i = 0;
+      while (gn_search(*gn, sent, sent_len, &def)) {
+         lua_pushlstring(lua, def.acronym, def.acronym_len);
+         lua_rawseti(lua, -2, ++i);
+         lua_pushlstring(lua, def.expansion, def.expansion_len);
+         lua_rawseti(lua, -2, ++i);
       }
    }
    mr_dealloc(mr);

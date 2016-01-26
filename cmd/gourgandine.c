@@ -48,13 +48,9 @@ static void process(struct mascara *mr, struct gourgandine *gn, const char *path
    
    struct mr_token *sent;
    while ((len = mr_next(mr, &sent))) {
-      size_t nr;
-      const struct gn_acronym *defs = gn_process(gn, sent, len, &nr);
-      for (size_t i = 0; i < nr; i++) {
-         struct gn_str acr, exp;
-         gn_extract(gn, sent, &defs[i], &acr, &exp);
-         printf("%s\t%s\n", acr.str, exp.str);
-      }
+      struct gn_acronym def = {0};
+      while (gn_search(gn, sent, len, &def))
+         printf("%s\t%s\n", def.acronym, def.expansion);
    }
    free(str);
 }

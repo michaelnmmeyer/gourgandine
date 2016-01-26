@@ -3,6 +3,7 @@
 #include "lib/mascara.h"
 #include "imp.h"
 #include "utf8.h"
+#include "vec.h"
 
 /* Before comparing an acronym to its expansion, we do the following:
  * (a) Use Unicode decomposition mappings (NFKC).
