@@ -30,22 +30,19 @@ uninstall:
 # Concrete targets
 #--------------------------------------
 
-LIBS = src/lib/mascara.o src/lib/utf8proc.o
+LIBS = src/lib/mascara.c src/lib/utf8proc.c
 
 cmd/%.ih: cmd/%.txt
 	cmd/mkcstring.py < $< > $@
 
-src/lib/%.o: src/lib/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
 gourgandine.h: src/api.h
 	cp $< $@
 
-gourgandine.c: $(wildcard src/*.[hc] src/lib/*.[hc])
+gourgandine.c: $(wildcard src/*.[hc]) $(wildcard src/lib/*.[hc])
 	src/mkamalg.py src/*.c > $@
 
-gourgandine: $(AMALG) $(wildcard cmd/*.[hc]) $(LIBS) cmd/gourgandine.ih
+gourgandine: $(wildcard cmd/*.[hc]) cmd/gourgandine.ih $(AMALG)
 	$(CC) $(CFLAGS) gourgandine.c cmd/*.c $(LIBS) -o $@
 
-test/gourgandine.so: test/gourgandine.c $(AMALG) src/lib/mascara.c src/lib/utf8proc.c
-	$(CC) $(CFLAGS) -fPIC -shared $< gourgandine.c src/lib/mascara.c src/lib/utf8proc.c -o $@
+test/gourgandine.so: test/gourgandine.c $(AMALG)
+	$(CC) $(CFLAGS) -fPIC -shared $< gourgandine.c $(LIBS) -o $@
