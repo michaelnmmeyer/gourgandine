@@ -124,7 +124,7 @@ check{
 }
 
 -- Ensure that we filter out expansions containing unmatched brackets, for the
--- reasons given in mb_abbr.c.
+-- reasons given in the library code.
 check{
    input = [[
    In Bangladesh operano il Communist Party of Bangla Desh (Marxist-Leninist)
