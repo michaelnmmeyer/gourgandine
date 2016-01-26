@@ -9,10 +9,10 @@ AMALG = gourgandine.h gourgandine.c
 # Abstract targets
 #--------------------------------------
 
-all: $(AMALG) gourgandine
+all: $(AMALG) gourgandine example
 
 clean:
-	rm -f gourgandine vgcore* core
+	rm -f gourgandine example test/gourgandine.so vgcore* core
 
 check: test/gourgandine.so
 	cd test && valgrind --leak-check=full --error-exitcode=1 lua test.lua
@@ -43,6 +43,9 @@ gourgandine.c: $(wildcard src/*.[hc]) $(wildcard src/lib/*.[hc])
 
 gourgandine: $(wildcard cmd/*.[hc]) cmd/gourgandine.ih $(AMALG)
 	$(CC) $(CFLAGS) gourgandine.c cmd/*.c $(LIBS) -o $@
+
+example: example.c $(AMALG)
+	$(CC) -Isrc/lib $(CFLAGS) $(LDLIBS) $< gourgandine.c $(LIBS) -o $@
 
 test/gourgandine.so: test/gourgandine.c $(AMALG)
 	$(CC) $(CFLAGS) -fPIC -shared $< gourgandine.c $(LIBS) -o $@

@@ -1006,7 +1006,10 @@ struct gn_acronym {
    size_t expansion_end;
 };
 
-/* Declared in mascara.h (https://github.com/michaelnmmeyer/mascara). */
+/* Token structure. Declared in my tokenization library
+ * (https://github.com/michaelnmmeyer/mascara), which can be used for
+ * preprocessing.
+ */
 struct mr_token;
 
 /* Finds acronym definitions in a sentence.
