@@ -36,7 +36,6 @@ const struct gn_acronym *gn_process(struct gourgandine *,
                                     const struct mr_token *sent, size_t len,
                                     size_t *nr);
 
-
 struct gn_str {
    const char *str;
    size_t len;
@@ -53,33 +52,48 @@ void gn_extract(struct gourgandine *, const struct mr_token *sent, const struct 
 
 #include <stdint.h>
 
+struct span {
+   size_t start;
+   size_t end;
+};
+
 struct gourgandine {
-   char *buf;
-   /* Temporary buffer for normalizing an acronym and its expansion.
-      Before trying to match an acronym against its expansion, we write
-      here a string of the form:
 
-         acronym TAB (expansion_word SPACE)+
-
-      Before calling the provided callback, we write here a string of the form:
-
-         acronym '\0' expansion '\0'
+   /* Buffer for normalizing an acronym and its expansion. They are stored
+    * consecutively: acronym '\0' expansion '\0'.
     */
-   
+   char *buf;
+
+   /* Buffer for holding the string to match, which is normalized. We write here
+    * a string of the form: acronym TAB (expansion_word SPACE)+.
+    */
    int32_t *str;
    
-   /* Mapping between a real token and a normalized token. */
+   /* Over-segmenting tokens is necessary for matching, e.g.:
+    *
+    *    [GAP] D-glyercaldehyde 3-phosphate
+    *
+    * Our tokenizer doesn't split on '-', in particular, so we must perform a
+    * new segmentation of each token. The following keeps track of the relation
+    * between the token chunks we produce here and the position of the
+    * corresponding token in the input sentence, so that we can obtain correct
+    * offsets after processing.
+    */
    struct assoc {
-      /* Offset in the above buffer of the current normalized token. */
+      /* Offset in the "str" of the current normalized token. */
       size_t norm_off;
       /* Position of the corresponding real token in the sentence. */
       size_t token_no;
    } *tokens;
 
-   struct gn_acronym *acrs;   /* Acronyms gathered so far. */
+   /* Acronyms gathered so far. */
+   struct gn_acronym *acrs;
 };
 
 void gn_run(struct gourgandine *rec, const struct mr_token *sent, size_t len);
+
+void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
+               size_t abbr, const struct span *exp);
 
 #endif
 #line 3 "api.c"
@@ -172,75 +186,8 @@ void gn_dealloc(struct gourgandine *gn)
    gn_vec_free(gn->tokens);
    free(gn);
 }
-#line 1 "buf.c"
-#include <stdio.h>
-#line 1 "buf.h"
-#ifndef GN_BUF_H
-#define GN_BUF_H
-
-#include <stddef.h>
-#include <string.h>
+#line 1 "encode.c"
 #include <assert.h>
-#include <stdlib.h>
-
-struct gn_buf {
-   char *data;
-   size_t size, alloc;
-};
-
-#define GN_BUF_INIT {.data = ""}
-
-
-
-void gn_buf_grow(struct gn_buf *buf, size_t incr);
-
-/* Concatenates "data" at the end of a buffer. */
-void gn_buf_cat(struct gn_buf *buf, const void *data, size_t size);
-
-
-
-
-
-/* Truncation to the empty string. */
-#define gn_buf_clear(buf) gn_buf_truncate(buf, 0)
-
-#endif
-#line 3 "buf.c"
-
-#define MB_ENLARGE(buf, size, alloc, init) do {                                \
-   const size_t size_ = (size);                                                \
-   assert(size_ > 0 && init > 0);                                              \
-   if (size_ > alloc) {                                                        \
-      if (!alloc) {                                                            \
-         alloc = size_ > init ? size_ : init;                                  \
-         buf = malloc(alloc * sizeof *(buf));                                  \
-      } else {                                                                 \
-         assert(buf);                                                          \
-         size_t tmp_ = alloc + (alloc >> 1);                                   \
-         alloc = tmp_ > size_ ? tmp_ : size_;                                  \
-         buf = realloc(buf, alloc * sizeof *(buf));                            \
-      }                                                                        \
-   }                                                                           \
-} while (0)
-
-void gn_buf_grow(struct gn_buf *buf, size_t size)
-{
-   size += buf->size;
-   MB_ENLARGE(buf->data, size + 1, buf->alloc, 16);
-}
-
-void gn_buf_set(struct gn_buf *buf, const void *data, size_t size)
-{
-   gn_buf_cat(buf, data, size);
-}
-
-void gn_buf_cat(struct gn_buf *buf, const void *data, size_t size)
-{
-   gn_buf_grow(buf, size);
-   memcpy(&buf->data[buf->size], data, size);
-   buf->data[buf->size += size] = '\0';
-}
-#line 1 "imp.c"
 #line 1 "utf8proc.h"
 /*
  * Copyright (c) 2015 Steven G. Johnson, Jiahao Chen, Peter Colberg, Tony Kelman, Scott P. Jones, and other contributors.
@@ -842,7 +789,7 @@ UTF8PROC_DLLEXPORT utf8proc_uint8_t *utf8proc_NFKC(const utf8proc_uint8_t *str);
 #endif
 
 #endif
-#line 2 "imp.c"
+#line 3 "encode.c"
 #line 1 "mascara.h"
 #ifndef MASCARA_H
 #define MASCARA_H
@@ -930,7 +877,7 @@ struct mr_token {
 size_t mr_next(struct mascara *, struct mr_token **);
 
 #endif
-#line 3 "imp.c"
+#line 4 "encode.c"
 #line 1 "utf8.h"
 #ifndef GN_UTF8_H
 #define GN_UTF8_H
@@ -951,12 +898,7 @@ size_t gn_decode_char(int32_t *restrict dest, const char *restrict str);
 size_t gn_utf8_len(const char *str, size_t len);
 
 #endif
-#line 5 "imp.c"
-
-struct span {
-   size_t start;
-   size_t end;
-};
+#line 6 "encode.c"
 
 /* Before comparing an acronym to its expansion, we do the following:
  * (a) Use Unicode decomposition mappings (NFKC).
@@ -1019,12 +961,6 @@ static int32_t *push_letter(int32_t *str, int32_t c)
    return str;
 }
 
-static void clear_data(struct gourgandine *rec)
-{
-   gn_vec_clear(rec->str);
-   gn_vec_clear(rec->tokens);
-}
-
 static void encode_abbr(struct gourgandine *rec, const struct mr_token *acr)
 {
    assert(gn_vec_len(rec->str) == 0);
@@ -1068,6 +1004,19 @@ static void encode_exp(struct gourgandine *rec, const struct span *exp,
    gn_vec_grow(rec->str, 1);
    rec->str[gn_vec_len(rec->str)] = '\0';
 }
+
+void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
+               size_t abbr, const struct span *exp)
+{
+   gn_vec_clear(rec->str);
+   gn_vec_clear(rec->tokens);
+   
+   encode_abbr(rec, &sent[abbr]);
+   encode_exp(rec, exp, sent);
+}
+#line 1 "imp.c"
+#include <string.h>
+#include <assert.h>
 
 static int32_t char_at(const struct gourgandine *gn, size_t tok, size_t pos)
 {
@@ -1133,10 +1082,7 @@ static size_t match_here(struct gourgandine *rec, const int32_t *abbr,
 static bool extract_rev(struct gourgandine *rec, const struct mr_token *sent,
                         size_t abbr, struct span *exp)
 {
-   clear_data(rec);
-
-   encode_abbr(rec, &sent[abbr]);
-   encode_exp(rec, exp, sent);
+   gn_encode(rec, sent, abbr, exp);
 
    const int32_t *str = rec->str;
    size_t start = gn_vec_len(rec->tokens);
@@ -1188,10 +1134,7 @@ static void truncate_exp(const struct mr_token *sent, struct span *exp,
 static bool extract_fwd(struct gourgandine *rec, const struct mr_token *sent,
                         size_t abbr, struct span *exp)
 {
-   clear_data(rec);
-   
-   encode_abbr(rec, &sent[abbr]);
-   encode_exp(rec, exp, sent);
+   gn_encode(rec, sent, abbr, exp);
 
    if (gn_vec_len(rec->tokens) == 0)
       return false;

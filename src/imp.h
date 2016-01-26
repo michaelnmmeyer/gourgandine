@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+struct span {
+   size_t start;
+   size_t end;
+};
+
 struct gourgandine {
 
    /* Buffer for normalizing an acronym and its expansion. They are stored
@@ -37,5 +42,8 @@ struct gourgandine {
 };
 
 void gn_run(struct gourgandine *rec, const struct mr_token *sent, size_t len);
+
+void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
+               size_t abbr, const struct span *exp);
 
 #endif

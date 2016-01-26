@@ -41,7 +41,7 @@ src/lib/%.o: src/lib/%.c
 gourgandine.h: src/api.h
 	cp $< $@
 
-gourgandine.c: $(wildcard src/*.[hc])
+gourgandine.c: $(wildcard src/*.[hc] src/lib/*.[hc])
 	src/mkamalg.py src/*.c > $@
 
 gourgandine: $(AMALG) $(wildcard cmd/*.[hc]) $(LIBS) cmd/gourgandine.ih

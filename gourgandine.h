@@ -34,7 +34,6 @@ const struct gn_acronym *gn_process(struct gourgandine *,
                                     const struct mr_token *sent, size_t len,
                                     size_t *nr);
 
-
 struct gn_str {
    const char *str;
    size_t len;

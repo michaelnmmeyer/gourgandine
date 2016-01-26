@@ -1,5 +1,4 @@
 #include "imp.h"
-#include "buf.h"
 
 static size_t norm_exp(char *buf, const char *str, size_t len)
 {
