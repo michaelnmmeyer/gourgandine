@@ -4,29 +4,36 @@
 #include <stdint.h>
 
 struct gourgandine {
-   char *buf;
-   /* Temporary buffer for normalizing an acronym and its expansion.
-      Before trying to match an acronym against its expansion, we write
-      here a string of the form:
 
-         acronym TAB (expansion_word SPACE)+
-
-      Before calling the provided callback, we write here a string of the form:
-
-         acronym '\0' expansion '\0'
+   /* Buffer for normalizing an acronym and its expansion. They are stored
+    * consecutively: acronym '\0' expansion '\0'.
     */
-   
+   char *buf;
+
+   /* Buffer for holding the string to match, which is normalized. We write here
+    * a string of the form: acronym TAB (expansion_word SPACE)+.
+    */
    int32_t *str;
    
-   /* Mapping between a real token and a normalized token. */
+   /* Over-segmenting tokens is necessary for matching, e.g.:
+    *
+    *    [GAP] D-glyercaldehyde 3-phosphate
+    *
+    * Our tokenizer doesn't split on '-', in particular, so we must perform a
+    * new segmentation of each token. The following keeps track of the relation
+    * between the token chunks we produce here and the position of the
+    * corresponding token in the input sentence, so that we can obtain correct
+    * offsets after processing.
+    */
    struct assoc {
-      /* Offset in the above buffer of the current normalized token. */
+      /* Offset in the "str" of the current normalized token. */
       size_t norm_off;
       /* Position of the corresponding real token in the sentence. */
       size_t token_no;
    } *tokens;
 
-   struct gn_acronym *acrs;   /* Acronyms gathered so far. */
+   /* Acronyms gathered so far. */
+   struct gn_acronym *acrs;
 };
 
 void gn_run(struct gourgandine *rec, const struct mr_token *sent, size_t len);
