@@ -15,11 +15,11 @@ static void inform(const char *msg, va_list ap)
 
    fprintf(stderr, "%s: ", g_progname);
    vfprintf(stderr, msg, ap);
-   
+
    size_t len = strlen(msg);
    if (len && msg[len - 1] == ':')
       fprintf(stderr, " %s", my_errno ? strerror(my_errno) : "<unknown error>");
-   
+
    putc('\n', stderr);
 }
 
@@ -70,7 +70,7 @@ static struct option help_option = {
 static struct option *short_option(struct option *options, int letter)
 {
    assert(letter);
-   
+
    while (options->name) {
       if (options->letter == letter)
          return options;
@@ -78,7 +78,7 @@ static struct option *short_option(struct option *options, int letter)
    }
    if (letter == help_option.letter)
       return &help_option;
-   
+
    die("unknown option: -%c", letter);
 }
 
@@ -91,14 +91,14 @@ static struct option *long_option(struct option *options, const char *name)
    }
    if (!strcmp(name, help_option.name))
       return &help_option;
-   
+
    die("unknown option: --%s", name);
 }
 
 static void handle_option(struct option *opt, const char *arg)
 {
    bool legit = true;
-   
+
    switch (opt->type) {
    case OPT_STR:
       *opt->s = arg;
@@ -133,7 +133,7 @@ static void handle_option(struct option *opt, const char *arg)
    default:       // NUM_OPTS handled in switch.
       break;
    }
-   
+
    if (!legit)
       die("invalid argument '%s' for option --%s", arg, opt->name);
 }
@@ -149,7 +149,7 @@ static void check_help(const char *help)
 {
    assert(help);
    bool legit = false;
-   
+
    for (;;) {
       help = strchr(help, '%');
       if (!help)
@@ -170,7 +170,7 @@ static void check_help(const char *help)
          goto fini;
       }
    }
-   
+
 fini:
    if (!legit)
       die("invalid help screen");
@@ -190,10 +190,10 @@ noreturn void parse_command(struct command *commands, const char *help,
 {
    set_progname(*argv);
    set_help(help);
-   
+
    if (argc == 1)
       display_help();
-   
+
    const char *arg = argv[1];
    for (struct command *cmd = commands; cmd->name; cmd++) {
       if (!strcmp(cmd->name, arg)) {
@@ -222,7 +222,7 @@ void parse_options(struct option *options, const char *help,
 
    int argc = *argcp;
    char **argv = *argvp;
-   
+
    int i;
    if (help) {
       assert(argc > 0);
@@ -277,7 +277,7 @@ void parse_options(struct option *options, const char *help,
          handle_option(option, arg);
       }
    }
-   
+
    *argcp -= i;
    *argvp += i;
 }

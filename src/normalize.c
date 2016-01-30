@@ -8,7 +8,7 @@ static size_t norm_exp(char *buf, const char *str, size_t len)
    for (size_t i = 0; i < len; ) {
       int32_t c;
       i += gn_decode_char(&c, &str[i]);
-      
+
       /* Skip quotation marks. */
       if (gn_is_double_quote(c))
          continue;

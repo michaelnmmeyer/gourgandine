@@ -19,7 +19,7 @@ struct gourgandine {
     * a string of the form: acronym TAB (expansion_word SPACE)+.
     */
    int32_t *str;
-   
+
    /* Over-segmenting tokens is necessary for matching, e.g.:
     *
     *    [GAP] D-glyercaldehyde 3-phosphate

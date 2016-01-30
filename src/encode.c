@@ -26,7 +26,7 @@ static const int norm_opts = UTF8PROC_COMPOSE | UTF8PROC_CASEFOLD
 static int32_t *push_letter(int32_t *str, int32_t c)
 {
    assert(gn_is_alpha(c));
-   
+
    switch (c) {
    case U'œ': case U'Œ':
       /* The ligature Œ requires a specific treatment:
@@ -112,7 +112,7 @@ void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
 {
    gn_vec_clear(rec->str);
    gn_vec_clear(rec->tokens);
-   
+
    encode_abbr(rec, &sent[abbr]);
    gn_vec_push(rec->str, '\t');
    encode_exp(rec, exp, sent);

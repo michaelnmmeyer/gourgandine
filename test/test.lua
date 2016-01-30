@@ -266,7 +266,7 @@ check{
    }
 }
 
--- Ensure that we handle correctly the character X. 
+-- Ensure that we handle correctly the character X.
 check{
    input = [[
    In Eugene, Lane Transit District uses articulated buses on some high-traffic
@@ -287,7 +287,7 @@ check{
       "IAX2", "Inter-Asterisk eXchange",
    }
 }
-check{ 	 
+check{
    input = [[
    A VoIP-to-Telco gateway used to interface a VoIP PBX (private branch
    exchange) to analog lines would contain hybrids to perform the required

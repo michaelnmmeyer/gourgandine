@@ -24,7 +24,7 @@ static void *read_file(const char *path, size_t *size)
 
    uint8_t *buf = GN_VEC_INIT;
    size_t len = 0;
-   
+
    gn_vec_grow(buf, BUFSIZ);
    while ((len = fread(&buf[gn_vec_len(buf)], 1, BUFSIZ, fp))) {
       gn_vec_len(buf) += len;
@@ -38,8 +38,6 @@ static void *read_file(const char *path, size_t *size)
       complain("cannot read '%s':", path);
       goto fail;
    }
-   if (fp != stdin)
-      fclose(fp);
 
    uint8_t *nrm;
    ssize_t ret = utf8proc_map(buf, gn_vec_len(buf), &nrm, UTF8PROC_STABLE | UTF8PROC_COMPOSE);
@@ -76,7 +74,7 @@ static void process(struct mascara *mr, struct gourgandine *gn, const char *path
       return;
 
    mr_set_text(mr, str, len);
-   
+
    struct mr_token *sent;
    while ((len = mr_next(mr, &sent))) {
       struct gn_acronym def = {0};
@@ -107,7 +105,7 @@ int main(int argc, char **argv)
       #include "gourgandine.ih"
    ;
    parse_options(opts, help, &argc, &argv);
-   
+
    if (list) {
       display_langs();
       return EXIT_SUCCESS;

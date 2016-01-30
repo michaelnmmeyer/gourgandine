@@ -40,9 +40,9 @@ static size_t match_here(struct gourgandine *rec, const int32_t *abbr,
    /* There is a match if we reached the end of the acronym. */
    if (*abbr == '\t')
       return tok + 1;
-   
+
    assert(pos > 0);
-   
+
    /* Try first to find the acronym letter in the current word. */
    int32_t c;
    size_t l;
@@ -51,7 +51,7 @@ static size_t match_here(struct gourgandine *rec, const int32_t *abbr,
          return l;
       pos++;
    }
-   
+
    /* Restrict the search to the first letter of one of the following words. */
    while (++tok < gn_vec_len(rec->tokens)) {
       if (char_at(rec, tok, 0) == *abbr && (l = match_here(rec, &abbr[1], tok, 1)))
@@ -131,11 +131,11 @@ static bool extract_fwd(struct gourgandine *rec, const struct mr_token *sent,
 
    if (*rec->str != char_at(rec, 0, 0))
       return false;
-   
+
    size_t end = match_here(rec, &rec->str[1], 0, 1);
    if (!end)
       return false;
-   
+
    /* Translate to an actual token offset. */
    end = rec->tokens[end - 1].token_no;
    if (end < exp->end)
@@ -152,7 +152,7 @@ static bool pre_check(const struct mr_token *acr)
    size_t ulen = gn_utf8_len(acr->str, acr->len);
    if (ulen < 2 || ulen > 10)
       return false;
-   
+
    /* Require that the acronym's first character is alphanumeric.
     * Everybody does that, too.
     */
@@ -160,7 +160,7 @@ static bool pre_check(const struct mr_token *acr)
    gn_decode_char(&c, acr->str);
    if (!gn_is_alnum(c))
       return false;
-   
+
    /* Require that the acronym contains at least one capital letter if
     * |acronym| = 2, otherwise 2.
     * People generally require only one capital letter. By requiring 2 capital
@@ -169,7 +169,7 @@ static bool pre_check(const struct mr_token *acr)
     * is mistaken for an acronym. We also miss acronyms by doing that,
     * but a quick check shows that these are almost always acronyms of
     * measure units (km., dl., etc.), which are not the most interesting anyway,
-    * so this is a good tradeoff.  
+    * so this is a good tradeoff.
     */
    size_t i = 0;
    while (i < acr->len) {
@@ -216,7 +216,7 @@ static bool post_check(const struct mr_token *sent,
    }
    if (nest)
       return false;
-   
+
    /* Discard if the acronym is part of the expansion.
     * We do this check _after_ the acronym is extracted because the acronym
     * might very well occur elsewhere in the same sentence, but not be included
@@ -269,7 +269,7 @@ static int find_acronym(struct gourgandine *rec, const struct mr_token *sent,
    rtrim_sym(sent, exp);
    ltrim_sym(sent, abbr);
    rtrim_sym(sent, abbr);
-   
+
    /* Nothing to do if we end up with the empty string after truncation. */
    if (exp->start == exp->end || abbr->start == abbr->end)
       return 0;
@@ -277,7 +277,7 @@ static int find_acronym(struct gourgandine *rec, const struct mr_token *sent,
    /* If the abbreviation would be too long, try the reverse form. */
    if (abbr->end - abbr->start != 1)
       goto reverse;
-   
+
    /* Try the form <expansion> (<acronym>).
     *
     * Hearst requires that an expansion doesn't contain more tokens than:
@@ -367,7 +367,7 @@ int gn_search(struct gourgandine *rec, const struct mr_token *sent, size_t len,
    struct span left, right;
    size_t lb, rb;
    size_t i;
-   
+
    if (acr->acronym_start > acr->expansion_end) {
       /* <expansion> (<acronym>) <to_check...> */
       i = left.start = acr->acronym_end + 1;
@@ -382,7 +382,7 @@ int gn_search(struct gourgandine *rec, const struct mr_token *sent, size_t len,
       left.start = 0;
       i = 1;
    }
-   
+
    /* End at len - 1 because the opening bracket must be followed by at least
     * one token (and maybe a closing bracket).
     */

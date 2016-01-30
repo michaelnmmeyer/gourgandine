@@ -4,7 +4,7 @@
 size_t gn_utf8_len(const char *str, size_t len)
 {
    size_t ulen = 0;
-   
+
    size_t clen;
    for (size_t i = 0; i < len; i += clen) {
       clen = utf8proc_utf8class[(uint8_t)str[i]];
@@ -16,7 +16,7 @@ size_t gn_utf8_len(const char *str, size_t len)
 bool gn_is_upper(int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
-   
+
    switch (utf8proc_get_property(c)->category) {
    case UTF8PROC_CATEGORY_LU:
       return true;
@@ -28,7 +28,7 @@ bool gn_is_upper(int32_t c)
 bool gn_is_alnum(int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
-   
+
    switch (utf8proc_get_property(c)->category) {
    case UTF8PROC_CATEGORY_LU:
    case UTF8PROC_CATEGORY_LL:
@@ -47,7 +47,7 @@ bool gn_is_alnum(int32_t c)
 bool gn_is_alpha(int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
-   
+
    switch (utf8proc_get_property(c)->category) {
    case UTF8PROC_CATEGORY_LU:
    case UTF8PROC_CATEGORY_LL:
@@ -85,7 +85,7 @@ bool gn_is_double_quote(int32_t c)
 size_t gn_decode_char(int32_t *restrict dest, const char *restrict str)
 {
    const size_t len = utf8proc_utf8class[(uint8_t)*str];
-   
+
    switch (len) {
    case 1:
       *dest = str[0];
@@ -112,13 +112,13 @@ size_t gn_decode_char(int32_t *restrict dest, const char *restrict str)
 size_t gn_encode_char(char *dest, const int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
-   
+
    if (c < 0x80) {
       *dest = c;
-      return 1; 
+      return 1;
    }
    if (c < 0x800) {
-      dest[0] = 0xc0 | ((c & 0x07c0) >> 6); 
+      dest[0] = 0xc0 | ((c & 0x07c0) >> 6);
       dest[1] = 0x80 | (c & 0x003f);
       return 2;
    }

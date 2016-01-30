@@ -27,7 +27,7 @@ int main(int argc, char **argv)
       while (gn_search(gn, sent, sent_len, &acr))
          printf("%s\t%s\n", acr.acronym, acr.expansion);
    }
-   
+
    mr_dealloc(mr);
    gn_dealloc(gn);
 }
