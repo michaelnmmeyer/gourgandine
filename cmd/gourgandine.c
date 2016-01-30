@@ -66,12 +66,12 @@ noreturn static void version(void)
    exit(EXIT_SUCCESS);
 }
 
-static void process(struct mascara *mr, struct gourgandine *gn, const char *path)
+static int process(struct mascara *mr, struct gourgandine *gn, const char *path)
 {
    size_t len;
    char *str = read_file(path, &len);
    if (!str)
-      return;
+      return -1;
 
    mr_set_text(mr, str, len);
 
@@ -82,6 +82,7 @@ static void process(struct mascara *mr, struct gourgandine *gn, const char *path
          printf("%s\t%s\n", def.acronym, def.expansion);
    }
    free(str);
+   return 0;
 }
 
 static void display_langs(void)
@@ -116,12 +117,16 @@ int main(int argc, char **argv)
       die("no tokenizer for '%s'", lang);
 
    struct gourgandine *gn = gn_alloc();
+   int ret = EXIT_SUCCESS;
    if (!argc) {
-      process(mr, gn, NULL);
+      if (process(mr, gn, NULL))
+         ret = EXIT_FAILURE;
    } else {
       while (*argv)
-         process(mr, gn, *argv++);
+         if (process(mr, gn, *argv++))
+            ret = EXIT_FAILURE;
    }
    mr_dealloc(mr);
    gn_dealloc(gn);
+   return ret;
 }

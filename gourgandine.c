@@ -974,7 +974,7 @@ void *gn_realloc(void *mem, size_t size)
 #ifndef GOURGANDINE_H
 #define GOURGANDINE_H
 
-#define GN_VERSION "0.2"
+#define GN_VERSION "0.3"
 
 #include <stddef.h>
 
