@@ -1,7 +1,7 @@
 PREFIX = /usr/local
 
 CFLAGS = -std=c11 -g -Wall -Werror
-CFLAGS += -O2 -DNDEBUG -march=native -mtune=native -fomit-frame-pointer
+CFLAGS += -O2 -DNDEBUG -march=native -mtune=native -fomit-frame-pointer -flto
 
 AMALG = gourgandine.h gourgandine.c
 

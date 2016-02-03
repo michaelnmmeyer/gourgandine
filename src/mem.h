@@ -4,15 +4,16 @@
 #include <stddef.h>
 #include <stdarg.h>
 #include <stdnoreturn.h>
+#include "imp.h"
 
-noreturn void gn_fatal(const char *msg, ...);
+local noreturn void gn_fatal(const char *msg, ...);
 
-void *gn_malloc(size_t)
+local void *gn_malloc(size_t)
 #ifdef ___GNUC__
    __attribute__((malloc))
 #endif
    ;
 
-void *gn_realloc(void *, size_t);
+local void *gn_realloc(void *, size_t);
 
 #endif

@@ -107,8 +107,8 @@ static void encode_exp(struct gourgandine *rec, const struct span *exp,
    }
 }
 
-void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
-               size_t abbr, const struct span *exp)
+local void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
+                     size_t abbr, const struct span *exp)
 {
    gn_vec_clear(rec->str);
    gn_vec_clear(rec->tokens);

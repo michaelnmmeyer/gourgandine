@@ -1,6 +1,8 @@
 #ifndef GN_IMP_H
 #define GN_IMP_H
 
+#define local static
+
 #include <stdint.h>
 
 struct span {
@@ -40,9 +42,9 @@ struct gourgandine {
 
 struct gn_acronym;
 
-void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
-               size_t abbr, const struct span *exp);
+local void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
+                     size_t abbr, const struct span *exp);
 
-void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
-                struct gn_acronym *def);
+local void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
+                      struct gn_acronym *def);
 #endif

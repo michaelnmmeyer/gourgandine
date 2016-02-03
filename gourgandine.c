@@ -713,6 +713,8 @@ size_t mr_next(struct mascara *, struct mr_token **);
 #ifndef GN_IMP_H
 #define GN_IMP_H
 
+#define local static
+
 #include <stdint.h>
 
 struct span {
@@ -752,11 +754,11 @@ struct gourgandine {
 
 struct gn_acronym;
 
-void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
-               size_t abbr, const struct span *exp);
+local void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
+                     size_t abbr, const struct span *exp);
 
-void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
-                struct gn_acronym *def);
+local void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
+                      struct gn_acronym *def);
 #endif
 #line 5 "encode.c"
 #line 1 "utf8.h"
@@ -767,16 +769,16 @@ void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
 #include <stdint.h>
 #include <stdbool.h>
 
-bool gn_is_upper(int32_t c);
-bool gn_is_alnum(int32_t c);
-bool gn_is_alpha(int32_t c);
-bool gn_is_space(int32_t c);
-bool gn_is_double_quote(int32_t c);
+local bool gn_is_upper(int32_t c);
+local bool gn_is_alnum(int32_t c);
+local bool gn_is_alpha(int32_t c);
+local bool gn_is_space(int32_t c);
+local bool gn_is_double_quote(int32_t c);
 
-size_t gn_encode_char(char *dest, const int32_t c);
-size_t gn_decode_char(int32_t *restrict dest, const char *restrict str);
+local size_t gn_encode_char(char *dest, const int32_t c);
+local size_t gn_decode_char(int32_t *restrict dest, const char *restrict str);
 
-size_t gn_utf8_len(const char *str, size_t len);
+local size_t gn_utf8_len(const char *str, size_t len);
 
 #endif
 #line 6 "encode.c"
@@ -921,8 +923,8 @@ static void encode_exp(struct gourgandine *rec, const struct span *exp,
    }
 }
 
-void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
-               size_t abbr, const struct span *exp)
+local void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
+                     size_t abbr, const struct span *exp)
 {
    gn_vec_clear(rec->str);
    gn_vec_clear(rec->tokens);
@@ -944,20 +946,20 @@ void gn_encode(struct gourgandine *rec, const struct mr_token *sent,
 #include <stdarg.h>
 #include <stdnoreturn.h>
 
-noreturn void gn_fatal(const char *msg, ...);
+local noreturn void gn_fatal(const char *msg, ...);
 
-void *gn_malloc(size_t)
+local void *gn_malloc(size_t)
 #ifdef ___GNUC__
    __attribute__((malloc))
 #endif
    ;
 
-void *gn_realloc(void *, size_t);
+local void *gn_realloc(void *, size_t);
 
 #endif
 #line 4 "mem.c"
 
-noreturn void gn_fatal(const char *msg, ...)
+local noreturn void gn_fatal(const char *msg, ...)
 {
    va_list ap;
 
@@ -971,7 +973,7 @@ noreturn void gn_fatal(const char *msg, ...)
 
 #define GN_OOM() gn_fatal("out of memory")
 
-void *gn_malloc(size_t size)
+local void *gn_malloc(size_t size)
 {
    assert(size);
    void *mem = malloc(size);
@@ -980,7 +982,7 @@ void *gn_malloc(size_t size)
    return mem;
 }
 
-void *gn_realloc(void *mem, size_t size)
+local void *gn_realloc(void *mem, size_t size)
 {
    assert(size);
    mem = realloc(mem, size);
@@ -1087,8 +1089,8 @@ static size_t norm_abbr(char *buf, const char *str, size_t len)
    return new_len;
 }
 
-void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
-                struct gn_acronym *def)
+local void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
+                      struct gn_acronym *def)
 {
    size_t acr_len = sent[def->acronym_start].len;
    size_t exp_len = sent[def->expansion_end - 1].offset
@@ -1544,7 +1546,7 @@ void gn_dealloc(struct gourgandine *gn)
 }
 #line 1 "utf8.c"
 
-size_t gn_utf8_len(const char *str, size_t len)
+local size_t gn_utf8_len(const char *str, size_t len)
 {
    size_t ulen = 0;
 
@@ -1556,7 +1558,7 @@ size_t gn_utf8_len(const char *str, size_t len)
    return ulen;
 }
 
-bool gn_is_upper(int32_t c)
+local bool gn_is_upper(int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
 
@@ -1568,7 +1570,7 @@ bool gn_is_upper(int32_t c)
    }
 }
 
-bool gn_is_alnum(int32_t c)
+local bool gn_is_alnum(int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
 
@@ -1587,7 +1589,7 @@ bool gn_is_alnum(int32_t c)
    }
 }
 
-bool gn_is_alpha(int32_t c)
+local bool gn_is_alpha(int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
 
@@ -1603,7 +1605,7 @@ bool gn_is_alpha(int32_t c)
    }
 }
 
-bool gn_is_space(int32_t c)
+local bool gn_is_space(int32_t c)
 {
    switch (utf8proc_get_property(c)->category) {
    case UTF8PROC_CATEGORY_CC:
@@ -1615,7 +1617,7 @@ bool gn_is_space(int32_t c)
    }
 }
 
-bool gn_is_double_quote(int32_t c)
+local bool gn_is_double_quote(int32_t c)
 {
    switch (c) {
    case U'"': case U'”': case U'“': case U'„': case U'«': case U'»':
@@ -1625,7 +1627,7 @@ bool gn_is_double_quote(int32_t c)
    }
 }
 
-size_t gn_decode_char(int32_t *restrict dest, const char *restrict str)
+local size_t gn_decode_char(int32_t *restrict dest, const char *restrict str)
 {
    const size_t len = utf8proc_utf8class[(uint8_t)*str];
 
@@ -1652,7 +1654,7 @@ size_t gn_decode_char(int32_t *restrict dest, const char *restrict str)
    }
 }
 
-size_t gn_encode_char(char *dest, const int32_t c)
+local size_t gn_encode_char(char *dest, const int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
 

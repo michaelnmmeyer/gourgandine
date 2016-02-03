@@ -37,8 +37,8 @@ static size_t norm_abbr(char *buf, const char *str, size_t len)
    return new_len;
 }
 
-void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
-                struct gn_acronym *def)
+local void gn_extract(struct gourgandine *rec, const struct mr_token *sent,
+                      struct gn_acronym *def)
 {
    size_t acr_len = sent[def->acronym_start].len;
    size_t exp_len = sent[def->expansion_end - 1].offset

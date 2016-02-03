@@ -1,7 +1,7 @@
 #include "lib/utf8proc.h"
 #include "utf8.h"
 
-size_t gn_utf8_len(const char *str, size_t len)
+local size_t gn_utf8_len(const char *str, size_t len)
 {
    size_t ulen = 0;
 
@@ -13,7 +13,7 @@ size_t gn_utf8_len(const char *str, size_t len)
    return ulen;
 }
 
-bool gn_is_upper(int32_t c)
+local bool gn_is_upper(int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
 
@@ -25,7 +25,7 @@ bool gn_is_upper(int32_t c)
    }
 }
 
-bool gn_is_alnum(int32_t c)
+local bool gn_is_alnum(int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
 
@@ -44,7 +44,7 @@ bool gn_is_alnum(int32_t c)
    }
 }
 
-bool gn_is_alpha(int32_t c)
+local bool gn_is_alpha(int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
 
@@ -60,7 +60,7 @@ bool gn_is_alpha(int32_t c)
    }
 }
 
-bool gn_is_space(int32_t c)
+local bool gn_is_space(int32_t c)
 {
    switch (utf8proc_get_property(c)->category) {
    case UTF8PROC_CATEGORY_CC:
@@ -72,7 +72,7 @@ bool gn_is_space(int32_t c)
    }
 }
 
-bool gn_is_double_quote(int32_t c)
+local bool gn_is_double_quote(int32_t c)
 {
    switch (c) {
    case U'"': case U'”': case U'“': case U'„': case U'«': case U'»':
@@ -82,7 +82,7 @@ bool gn_is_double_quote(int32_t c)
    }
 }
 
-size_t gn_decode_char(int32_t *restrict dest, const char *restrict str)
+local size_t gn_decode_char(int32_t *restrict dest, const char *restrict str)
 {
    const size_t len = utf8proc_utf8class[(uint8_t)*str];
 
@@ -109,7 +109,7 @@ size_t gn_decode_char(int32_t *restrict dest, const char *restrict str)
    }
 }
 
-size_t gn_encode_char(char *dest, const int32_t c)
+local size_t gn_encode_char(char *dest, const int32_t c)
 {
    assert(utf8proc_codepoint_valid(c));
 

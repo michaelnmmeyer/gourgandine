@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 #include "cmd.h"
+
+#define local static
 #include "../gourgandine.h"
 #include "../src/vec.h"
 #include "../src/lib/mascara.h"
