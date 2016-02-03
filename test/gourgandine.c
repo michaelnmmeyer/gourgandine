@@ -26,11 +26,12 @@ static int gn_lua_extract(lua_State *lua)
    struct gourgandine **gn = luaL_checkudata(lua, 1, GN_MT);
    size_t len;
    const char *str = luaL_checklstring(lua, 2, &len);
-   const char *lang = luaL_optstring(lua, 3, "en");
+   const char *lang = luaL_optstring(lua, 3, "en fsm");
 
-   struct mascara *mr = mr_alloc(lang, MR_SENTENCE);
-   if (!mr)
-      return luaL_error(lua, "no tokenizer for '%s'", lang);
+   struct mascara *mr;
+   int ret = mr_alloc(&mr, lang, MR_SENTENCE);
+   if (ret)
+      return luaL_error(lua, "cannot create tokenizer: %s", mr_strerror(ret));
 
    mr_set_text(mr, str, len);
    struct mr_token *sent;
@@ -56,6 +57,7 @@ int luaopen_gourgandine(lua_State *lua)
    const luaL_Reg abbr_rec_methods[] = {
       {"__gc", gn_lua_fini},
       {"extract", gn_lua_extract},
+      {NULL, 0}
    };
    luaL_newmetatable(lua, GN_MT);
    lua_pushvalue(lua, -1);
@@ -67,5 +69,6 @@ int luaopen_gourgandine(lua_State *lua)
       {NULL, NULL},
    };
    luaL_newlib(lua, abbr_lib);
+
    return 1;
 }

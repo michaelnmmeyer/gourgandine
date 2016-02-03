@@ -606,9 +606,26 @@ UTF8PROC_DLLEXPORT utf8proc_uint8_t *utf8proc_NFKC(const utf8proc_uint8_t *str);
 #ifndef MASCARA_H
 #define MASCARA_H
 
-#define MR_VERSION "0.5"
+#define MR_VERSION "0.8"
 
 #include <stddef.h>
+
+/* Location of the directory that contains model files. Should be set at
+ * startup and not changed afterwards. Defaults to "models".
+ */
+extern const char *mr_home;
+
+enum {
+   MR_OK,      /* No error. */
+   MR_EHOME,   /* Cannot find models directory. */
+   MR_EOPEN,   /* Cannot open model file. */
+   MR_EMAGIC,  /* Model file signature mismatch. */
+   MR_EMODEL,  /* Model file is corrupt. */
+   MR_EIO,     /* Cannot read model file. */
+};
+
+/* Returns a string describing an error code. */
+const char *mr_strerror(int err);
 
 /* Maximum allowed length of a sentence, in tokens. Sentences that would grow
  * larger than that are split in chunks. This is done to avoid pathological
@@ -617,7 +634,7 @@ UTF8PROC_DLLEXPORT utf8proc_uint8_t *utf8proc_NFKC(const utf8proc_uint8_t *str);
 #define MR_MAX_SENTENCE_LEN 1000
 
 /* See the readme file for informations about these. */
-enum mr_token_type {
+enum mr_type {
    MR_UNK,
    MR_LATIN,
    MR_PREFIX,
@@ -631,27 +648,29 @@ enum mr_token_type {
 };
 
 /* String representation of a token type. */
-const char *mr_token_type_name(enum mr_token_type);
+const char *mr_type_name(enum mr_type);
 
 struct mascara;
 
-/* Tokenization mode. */
+/* Tokenization modes. */
 enum mr_mode {
    MR_TOKEN,      /* Iterate over tokens. */
-   MR_SENTENCE,   /* Iterate over sentences, where an sentence is an array of
-                   * tokens. */
+   MR_SENTENCE,   /* Iterate over sentences (arrays of tokens). */
 };
 
 /* Returns an array containing the names of the supported languages.
- * The array is NULL-terminated.
+ * The array is NULL-terminated and lexicographically sorted.
  */
 const char *const *mr_langs(void);
 
 /* Allocates a new tokenizer.
- * If there is no implementation for the provided language name, returns NULL.
- * Available languages are "en", "fr", and "it".
+ * If there is no specific support for the provided language name, chooses a
+ * generic tokenizer.
+ * On success, makes the provided structure pointer point to an allocated
+ * tokenizer, and returns MR_OK. Otherwise, makes it point to NULL, and returns
+ * an error code.
  */
-struct mascara *mr_alloc(const char *lang, enum mr_mode);
+int mr_alloc(struct mascara **, const char *lang, enum mr_mode);
 
 /* Destructor. */
 void mr_dealloc(struct mascara *);
@@ -671,7 +690,7 @@ struct mr_token {
    const char *str;           /* Not nul-terminated! */
    size_t len;                /* Length, in bytes. */
    size_t offset;             /* Offset from the start of the text, in bytes. */
-   enum mr_token_type type;
+   enum mr_type type;
 };
 
 /* Fetch the next token or sentence.

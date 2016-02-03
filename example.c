@@ -14,8 +14,13 @@ int main(int argc, char **argv)
    }
 
    /* Prepare ourselves for processing. */
+   struct mascara *mr;
+   int ret = mr_alloc(&mr, "en fsm", MR_SENTENCE);
+   if (ret) {
+      fprintf(stderr, "cannot create tokenizer: %s\n", mr_strerror(ret));
+      return EXIT_FAILURE;
+   }
    struct gourgandine *gn = gn_alloc();
-   struct mascara *mr = mr_alloc("en", MR_SENTENCE);
 
    /* Tokenize the string at argv[1]. */
    struct mr_token *sent;

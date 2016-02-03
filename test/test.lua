@@ -18,7 +18,8 @@ local function check(test)
       return true
    end
    local rec = gourgandine.new()
-   local ret = rec:extract(test.input:gsub("\n%s*", " "), test.language or "en")
+   local lang = (test.language or "en") .. " fsm"
+   local ret = rec:extract(test.input:gsub("\n%s*", " "), lang)
    if not identical(ret, test.output) then
       local caller = assert(debug.getinfo(2))
       print("-- Fail at line " .. caller.currentline)

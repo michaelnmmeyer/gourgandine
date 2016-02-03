@@ -111,13 +111,17 @@ int main(int argc, char **argv)
       display_langs();
       return EXIT_SUCCESS;
    }
+   
+   const char *home = getenv("MR_HOME");
+   mr_home = home ? home : MR_HOME;
 
-   struct mascara *mr = mr_alloc(lang, MR_SENTENCE);
-   if (!mr)
-      die("no tokenizer for '%s'", lang);
+   struct mascara *mr;
+   int ret = mr_alloc(&mr, lang, MR_SENTENCE);
+   if (ret)
+      die("cannot create tokenizer: %s", mr_strerror(ret));
 
    struct gourgandine *gn = gn_alloc();
-   int ret = EXIT_SUCCESS;
+   ret = EXIT_SUCCESS;
    if (!argc) {
       if (process(mr, gn, NULL))
          ret = EXIT_FAILURE;

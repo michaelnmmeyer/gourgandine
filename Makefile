@@ -19,9 +19,14 @@ check: test/gourgandine.so
 
 install: gourgandine
 	install -spm 0755 $< $(PREFIX)/bin/gourgandine
+	$(foreach model, $(wildcard src/lib/models/*), \
+	   install -pDm +r $(model) $(PREFIX)/share/gourgandine/$(notdir $(model));)
 
 uninstall:
 	rm -f $(PREFIX)/bin/gourgandine
+	$(foreach model, $(wildcard src/lib/models/*), \
+	   rm -f $(PREFIX)/share/gourgandine/$(notdir $(model));)
+	rmdir $(PREFIX)/share/gourgandine/ 2> /dev/null || true
 
 .PHONY: all clean check install uninstall
 
@@ -42,7 +47,7 @@ gourgandine.c: $(wildcard src/*.[hc]) $(wildcard src/lib/*.[hc])
 	src/mkamalg.py src/*.c > $@
 
 gourgandine: $(wildcard cmd/*.[hc]) cmd/gourgandine.ih $(AMALG)
-	$(CC) $(CFLAGS) gourgandine.c cmd/*.c $(LIBS) -o $@
+	$(CC) $(CFLAGS) -DMR_HOME='"$(PREFIX)/share/gourgandine"' gourgandine.c cmd/*.c $(LIBS) -o $@
 
 example: example.c $(AMALG)
 	$(CC) -Isrc/lib $(CFLAGS) $(LDLIBS) $< gourgandine.c $(LIBS) -o $@
