@@ -4,6 +4,7 @@
 #define local static
 
 #include <stdint.h>
+#include "lib/kabak.h"
 
 struct span {
    size_t start;

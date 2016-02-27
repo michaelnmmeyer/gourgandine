@@ -25,7 +25,7 @@ static const int norm_opts = UTF8PROC_COMPOSE | UTF8PROC_CASEFOLD
 /* Fold a character to ASCII and appends it to the provided buffer. */
 static int32_t *push_letter(int32_t *str, int32_t c)
 {
-   assert(gn_is_alpha(c));
+   assert(kb_is_letter(c));
 
    switch (c) {
    case U'œ': case U'Œ':
@@ -70,10 +70,9 @@ static void encode_abbr(struct gourgandine *rec, const struct mr_token *acr)
 {
    assert(gn_vec_len(rec->str) == 0);
 
-   for (size_t i = 0; i < acr->len; ) {
-      int32_t c;
-      i += gn_decode_char(&c, &acr->str[i]);
-      if (gn_is_alpha(c))
+   for (size_t i = 0, clen; i < acr->len; i += clen) {
+      char32_t c = kb_decode(&acr->str[i], &clen);
+      if (kb_is_letter(c))
          rec->str = push_letter(rec->str, c);
    }
 }
@@ -84,10 +83,9 @@ static void encode_exp(struct gourgandine *rec, const struct span *exp,
    for (size_t t = exp->start; t < exp->end; t++) {
       bool in_token = false;
       const struct mr_token *token = &sent[t];
-      for (size_t i = 0; i < token->len; ) {
-         int32_t c;
-         i += gn_decode_char(&c, &token->str[i]);
-         if (gn_is_alpha(c)) {
+      for (size_t i = 0, clen; i < token->len; i += clen) {
+         char32_t c = kb_decode(&token->str[i], &clen);
+         if (kb_is_letter(c)) {
             if (!in_token) {
                in_token = true;
                struct assoc a = {

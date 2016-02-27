@@ -149,15 +149,15 @@ static bool pre_check(const struct mr_token *acr)
    /* Require that 2 <= |acronym| <= 10.
     * Everybody uses these numbers, so we do that too.
     */
-   size_t ulen = gn_utf8_len(acr->str, acr->len);
+   size_t ulen = kb_count(acr->str, acr->len);
    if (ulen < 2 || ulen > 10)
       return false;
 
    /* Require that the acronym's first character is alphanumeric.
     * Everybody does that, too.
     */
-   int32_t c;
-   gn_decode_char(&c, acr->str);
+   size_t clen;
+   char32_t c = kb_decode(acr->str, &clen);
    if (!gn_is_alnum(c))
       return false;
 
@@ -171,10 +171,9 @@ static bool pre_check(const struct mr_token *acr)
     * measure units (km., dl., etc.), which are not the most interesting anyway,
     * so this is a good tradeoff.
     */
-   size_t i = 0;
-   while (i < acr->len) {
-      i += gn_decode_char(&c, &acr->str[i]);
-      if (gn_is_upper(c)) {
+   for (size_t i = 0; i < acr->len; i += clen) {
+      c = kb_decode(&acr->str[i], &clen);
+      if (kb_is_upper(c)) {
          if (ulen == 2)
             return true;
          ulen = 2;

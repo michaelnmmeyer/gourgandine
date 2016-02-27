@@ -5,23 +5,24 @@ static size_t norm_exp(char *buf, const char *str, size_t len)
 {
    size_t new_len = 0;
 
-   for (size_t i = 0; i < len; ) {
-      int32_t c;
-      i += gn_decode_char(&c, &str[i]);
+   for (size_t i = 0, clen; i < len; ) {
+      char32_t c = kb_decode(&str[i], &clen);
+      i += clen;
 
       /* Skip quotation marks. */
       if (gn_is_double_quote(c))
          continue;
       /* Reduce whitespace spans to a single space character. */
-      if (gn_is_space(c)) {
+      if (kb_is_space(c)) {
          do {
             /* Trailing spaces should already be removed. */
             assert(i < len);
-            i += gn_decode_char(&c, &str[i]);
-         } while (gn_is_space(c));
+            c = kb_decode(&str[i], &clen);
+            i += clen;
+         } while (kb_is_space(c));
          buf[new_len++] = ' ';
       }
-      new_len += gn_encode_char(&buf[new_len], c);
+      new_len += kb_encode(&buf[new_len], c);
    }
    return new_len;
 }
